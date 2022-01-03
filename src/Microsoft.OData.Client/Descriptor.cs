@@ -90,7 +90,7 @@ namespace Microsoft.OData.Client
         }
 
         /// <summary>changeOrder</summary>
-        public uint ChangeOrder
+        internal uint ChangeOrder
         {
             get { return this.changeOrder; }
             set { this.changeOrder = value; }
@@ -136,7 +136,7 @@ namespace Microsoft.OData.Client
         }
 
         /// <summary>DependsOnIds for the modified entity.</summary>
-        public List<string> DependsOnIds
+        internal List<string> DependsOnIds
         {
             get { return this.dependsOnIds; }
             set { this.dependsOnIds = value; }
