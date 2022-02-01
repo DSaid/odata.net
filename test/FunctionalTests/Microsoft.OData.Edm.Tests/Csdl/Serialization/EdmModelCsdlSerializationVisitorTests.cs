@@ -2007,7 +2007,7 @@ namespace Microsoft.OData.Edm.Tests.Csdl.Serialization
             // Act & Assert for Json
             VisitAndVerifyJson(v => v.VisitVocabularyAnnotation(annotation), @"{
   ""@Person.Employee"": {
-    ""$Type"": ""NS.Address"",
+    ""@type"": ""NS.Address"",
     ""Street"": ""148th ave"",
     ""City"": ""Redmond""
   }
@@ -2026,7 +2026,7 @@ namespace Microsoft.OData.Edm.Tests.Csdl.Serialization
             {
                 Indent = indent,
                 ConformanceLevel = ConformanceLevel.Auto
-            }); ;
+            });
             var schemaWriter = new EdmModelCsdlSchemaXmlWriter(model, xmlWriter, edmxVersion);
             var visitor = new EdmModelCsdlSerializationVisitor(model, schemaWriter);
 
