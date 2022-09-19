@@ -18,7 +18,9 @@ namespace Microsoft.OData.UriParser.Validation
         /// <summary>
         /// List of <see cref="ODataUrlValidationMessage"/>s discovered while validating the OData Url.
         /// </summary>
+#pragma warning disable CA1002 // Do not expose generic lists
         public List<ODataUrlValidationMessage> Messages { get; private set; }
+#pragma warning restore CA1002 // Do not expose generic lists
 
         /// <summary>
         /// The model against which the OData Url is to be validated.
