@@ -9,6 +9,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <IsPackable>true</IsPackable>
     <IsShipping>true</IsShipping>
+    <Platforms>AnyCPU;x64;x86</Platforms>
   </PropertyGroup>
    
   <!-- References -->
