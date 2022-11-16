@@ -10,10 +10,6 @@
    <Platforms>AnyCPU;x64;x86</Platforms>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
-    <DefineConstants>$(DefineConstants);ASSEMBLY_ATTRIBUTE_ON_NETSTANDARD_20</DefineConstants>
-  </PropertyGroup>
-
   <Import Project="..\Build.props" /> 
 
   <ItemGroup>
