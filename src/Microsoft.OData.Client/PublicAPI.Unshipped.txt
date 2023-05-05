@@ -434,6 +434,8 @@ Microsoft.OData.Client.DeleteLinkUriOption
 Microsoft.OData.Client.DeleteLinkUriOption.IdQueryParam = 0 -> Microsoft.OData.Client.DeleteLinkUriOption
 Microsoft.OData.Client.DeleteLinkUriOption.RelatedKeyAsSegment = 1 -> Microsoft.OData.Client.DeleteLinkUriOption
 Microsoft.OData.Client.Descriptor
+Microsoft.OData.Client.Descriptor.ChangeOrder.get -> uint
+Microsoft.OData.Client.Descriptor.ChangeOrder.set -> void
 Microsoft.OData.Client.Descriptor.State.get -> Microsoft.OData.Client.EntityStates
 Microsoft.OData.Client.EntityChangedParams
 Microsoft.OData.Client.EntityChangedParams.Context.get -> Microsoft.OData.Client.DataServiceContext

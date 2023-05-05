@@ -90,7 +90,7 @@ namespace Microsoft.OData.Client
         }
 
         /// <summary>changeOrder</summary>
-        internal uint ChangeOrder
+        public uint ChangeOrder
         {
             get { return this.changeOrder; }
             set { this.changeOrder = value; }

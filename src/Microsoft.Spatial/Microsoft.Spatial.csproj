@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;netstandard2.0;netstandard1.1</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;</TargetFrameworks>
     <AssemblyName>Microsoft.Spatial</AssemblyName>
     <RootNamespace>Microsoft.Spatial</RootNamespace>
 
@@ -9,6 +9,7 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <IsPackable>true</IsPackable>
     <IsShipping>true</IsShipping>
+    <Platforms>AnyCPU;x64;x86</Platforms>
   </PropertyGroup>
    
   <!-- References -->
@@ -80,5 +81,9 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Parameterized.Microsoft.Spatial.tt</DependentUpon>
     </Compile>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
   </ItemGroup>
 </Project>
