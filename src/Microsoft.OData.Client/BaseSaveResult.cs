@@ -494,7 +494,11 @@ namespace Microsoft.OData.Client
                 if (!this.IsBatchRequest)
                 {
                     this.HandleOperationResponse(responseMessage);
-                    this.HandleOperationResponseHeaders((HttpStatusCode)responseMessage.StatusCode, new HeaderCollection(responseMessage));
+
+                    if (!Util.IsBulkUpdate(this.Options) && !Util.IsDeepInsert(this.Options))
+                    {
+                        this.HandleOperationResponseHeaders((HttpStatusCode)responseMessage.StatusCode, new HeaderCollection(responseMessage));
+                    }  
                 }
 
                 Util.DebugInjectFault("SaveAsyncResult::AsyncEndGetResponse_BeforeGetStream");
@@ -590,7 +594,7 @@ namespace Microsoft.OData.Client
                              if (headers.HasHeader("Content-Type") && statusCode != HttpStatusCode.Created)
                              {
                                 throw Error.NotSupported(Strings.Deserialize_NoLocationHeader);
-                             }                      
+                             }
                         }
 
                         // Verify the id value if present. Otherwise we should use the location header
@@ -705,8 +709,8 @@ namespace Microsoft.OData.Client
                     contentHeaders.TryGetHeader(XmlConstants.HttpResponseLocation, out location);
                     contentHeaders.TryGetHeader(XmlConstants.HttpODataEntityId, out odataEntityId);
 
-                    Debug.Assert(location == null || location == entityDescriptor.GetLatestEditLink().AbsoluteUri, "edit link must already be set to location header");
-                    Debug.Assert((location == null && odataEntityId == null) || (odataEntityId ?? location) == UriUtil.UriToString(entityDescriptor.GetLatestIdentity()), "Identity must already be set");
+                    Debug.Assert(location == null || new Uri(location).AbsoluteUri == entityDescriptor.GetLatestEditLink().AbsoluteUri, "edit link must already be set to location header");
+                    Debug.Assert((location == null && odataEntityId == null) || (odataEntityId ?? new Uri(location).AbsoluteUri) == UriUtil.UriToString(entityDescriptor.GetLatestIdentity()), "Identity must already be set");
                 }
 #endif
             }
@@ -732,8 +736,8 @@ namespace Microsoft.OData.Client
         /// </summary>
         /// <param name="entityDescriptor">entity descriptor whose response is getting materialized.</param>
         /// <param name="responseInfo">information about the response to be materialized.</param>
-        /// <returns>an instance of MaterializeAtom, that can be used to materialize the response.</returns>
-        protected abstract MaterializeAtom GetMaterializer(EntityDescriptor entityDescriptor, ResponseInfo responseInfo);
+        /// <returns>an instance of ObjectMaterializer, that can be used to materialize the response.</returns>
+        protected abstract ObjectMaterializer GetMaterializer(EntityDescriptor entityDescriptor, ResponseInfo responseInfo);
 
         /// <summary>cleanup work to do once the batch / savechanges is complete</summary>
         protected override void CompletedRequest()
@@ -811,12 +815,19 @@ namespace Microsoft.OData.Client
 
         /// <summary>flag results as being processed</summary>
         /// <param name="descriptor">result descriptor being processed</param>
+        /// <param name="failedOperationInBulkOps">true if processing a failed operation in a bulk operation, otherwise false.</param>
         /// <returns>count of related links that were also processed</returns>
-        protected int SaveResultProcessed(Descriptor descriptor)
+        protected int SaveResultProcessed(Descriptor descriptor, bool failedOperationInBulkOps = false)
         {
             // media links will be processed twice
+            // If we get a failed operation in a bulk operation then we don't make updates to the descriptor.
             descriptor.SaveResultWasProcessed = descriptor.State;
 
+            if (failedOperationInBulkOps)
+            {
+                descriptor.SaveResultWasProcessed = EntityStates.Unchanged;
+            }
+            
             int count = 0;
             if (descriptor.DescriptorKind == DescriptorKind.Entity && (EntityStates.Added == descriptor.State))
             {
@@ -1410,7 +1421,7 @@ namespace Microsoft.OData.Client
         /// <param name="etag">etag value, if specified in the response header.</param>
         private void MaterializeResponse(EntityDescriptor entityDescriptor, ResponseInfo responseInfo, string etag)
         {
-            using (MaterializeAtom materializer = this.GetMaterializer(entityDescriptor, responseInfo))
+            using (ObjectMaterializer materializer = this.GetMaterializer(entityDescriptor, responseInfo))
             {
                 materializer.SetInsertingObject(entityDescriptor.Entity);
 

@@ -5,7 +5,7 @@
      <SignAssemblyAttribute>false</SignAssemblyAttribute>
     <AssemblyAttributeSuppressSecurityRules>true</AssemblyAttributeSuppressSecurityRules>
     <AllowPartialTrustedCalls>true</AllowPartialTrustedCalls>
-    <TargetFrameworks>net45</TargetFrameworks>
+    <TargetFrameworks>net48</TargetFrameworks>
     <RestorePackages>true</RestorePackages>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
     <ShouldGenerateAssemblyAttributeFile>false</ShouldGenerateAssemblyAttributeFile>
@@ -17,6 +17,7 @@
   <ItemGroup>
     <PackageReference Include="EntityFramework" Version="5.0.0" />
     <PackageReference Include="FluentAssertions" Version="4.1.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.0.0" />
     <PackageReference Include="MSTest.TestFramework" Version="2.1.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="2.1.0" />
   </ItemGroup>
@@ -68,11 +69,11 @@
     <Compile Include="DataWebClientCSharp\ClientShortIntegrationRegressionTests.cs" />
     <Compile Include="DataWebClientCSharp\ClientAndServerTypeMismatchTests.cs" />
     <Compile Include="DataWebClientCSharp\ClientErrorHandlingShortIntegrationTests.cs" />
-    <Compile Include="DataWebClientCSharp\JsonLightTypeResolverTests.cs" />
+    <Compile Include="DataWebClientCSharp\JsonTypeResolverTests.cs" />
     <Compile Include="DataWebClientCSharp\ODataTestMessage.cs" />
     <Compile Include="DataWebClientCSharp\ReadingAtomWithUseJsonTests.cs" />
-    <Compile Include="DataWebClientCSharp\JsonLightIntegrationTests.cs" />
-    <Compile Include="DataWebClientCSharp\JsonLightTestUtil.cs" />
+    <Compile Include="DataWebClientCSharp\JsonIntegrationTests.cs" />
+    <Compile Include="DataWebClientCSharp\JsonTestUtil.cs" />
     <Compile Include="DataWebClientCSharp\OperationDescriptorTests.cs" />
     <Compile Include="DataWebClientCSharp\ActionParametersTests.cs" />
     <Compile Include="DataWebClientCSharp\ClientActionTests.cs" />

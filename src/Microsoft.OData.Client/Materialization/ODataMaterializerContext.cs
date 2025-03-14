@@ -15,13 +15,27 @@ namespace Microsoft.OData.Client.Materialization
     /// </summary>
     internal class ODataMaterializerContext : IODataMaterializerContext
     {
+        private bool includeLinks;
+
         /// <summary>
         /// Initializes a materializer context
         /// </summary>
         /// <param name="responseInfo">Response information used to initialize with the materializer</param>
-        internal ODataMaterializerContext(ResponseInfo responseInfo)
+        /// <param name="materializerCache">The materializer cache.</param>
+        /// <param name="includeLinks">Whether to include navigation properties when materializing an entry.</param>
+        internal ODataMaterializerContext(ResponseInfo responseInfo, MaterializerCache materializerCache, bool includeLinks = true)
         {
             this.ResponseInfo = responseInfo;
+            this.MaterializerCache = materializerCache;
+            this.includeLinks = includeLinks;
+        }
+
+        /// <summary>
+        /// Whether to include navigation properties when materializing an entry.
+        /// </summary>
+        public bool IncludeLinks
+        {
+            get { return this.includeLinks; }
         }
 
         /// <summary>
@@ -65,6 +79,14 @@ namespace Microsoft.OData.Client.Materialization
         protected ResponseInfo ResponseInfo { get; private set; }
 
         /// <summary>
+        /// Specifies whether query projection will handle null propagation automatically.
+        /// </summary>
+        public bool AutoNullPropagation
+        {
+            get { return this.ResponseInfo.AutoNullPropagation; }
+        }
+
+        /// <summary>
         /// Resolved the given edm type to clr type.
         /// </summary>
         /// <param name="expectedType">Expected Clr type.</param>
@@ -84,5 +106,8 @@ namespace Microsoft.OData.Client.Materialization
         {
             return this.ResponseInfo.TypeResolver.ResolveExpectedTypeForReading(expectedType);
         }
+
+        /// <inheritdoc/>
+        public MaterializerCache MaterializerCache { get; private set; }
     }
 }

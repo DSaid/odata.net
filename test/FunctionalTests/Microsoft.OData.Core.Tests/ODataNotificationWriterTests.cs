@@ -31,7 +31,7 @@ namespace Microsoft.OData.Tests
         {
             // We care about the notification writer being disposed
             // We don't care about the writer passed to the notification writer
-            using (var notificationWriter = new ODataNotificationWriter(
+            using (TextWriter notificationWriter = new ODataNotificationWriter(
                 this.writer,
                 this.streamListener,
                 synchronous))
@@ -48,7 +48,7 @@ namespace Microsoft.OData.Tests
         [InlineData(false, "StreamDisposedAsync")]
         public void NotificationWriterDisposeShouldBeIdempotent(bool synchronous, string expected)
         {
-            var notificationWriter = new ODataNotificationWriter(
+            TextWriter notificationWriter = new ODataNotificationWriter(
                 this.writer,
                 this.streamListener,
                 synchronous);
@@ -64,11 +64,11 @@ namespace Microsoft.OData.Tests
             Assert.Equal(expected, result);
         }
 
-#if NETCOREAPP3_1
         [Fact]
-        public async Task NotificationWriterDisposeShouldInvokeStreamDisposedAsync()
+        public async Task NotificationWriterDisposeAsyncShouldInvokeStreamDisposedAsync()
         {
-            await using (var notificationWriter = new ODataNotificationWriter(
+            this.writer = new StreamWriter(new AsyncStream(this.stream));
+            await using (TextWriter notificationWriter = new ODataNotificationWriter(
                 this.writer,
                 this.streamListener)) // `synchronous` argument becomes irrelevant since we'll directly call DisposeAsync
             {
@@ -80,9 +80,10 @@ namespace Microsoft.OData.Tests
         }
 
         [Fact]
-        public async Task NotificationWriterDisposeAsyncShouldBeIdempotent()
+        public async Task NotificationWriterDisposeAsyncShouldBeIdempotentAsync()
         {
-            var notificationWriter = new ODataNotificationWriter(
+            this.writer = new StreamWriter(new AsyncStream(this.stream));
+            TextWriter notificationWriter = new ODataNotificationWriter(
                 this.writer,
                 this.streamListener);
 
@@ -96,23 +97,6 @@ namespace Microsoft.OData.Tests
             // StreamDisposeAsync was written only once
             Assert.Equal("StreamDisposedAsync", result);
         }
-
-#else
-        [Fact]
-        public async Task NotificationWriterDisposeShouldInvokeStreamDisposedAsync()
-        {
-            using (var notificationWriter = new ODataNotificationWriter(
-                this.writer,
-                this.streamListener,
-                /*synchronous*/ false))
-            {
-            }
-
-            var result = await this.ReadStreamContentsAsync();
-
-            Assert.Equal("StreamDisposedAsync", result);
-        }
-#endif
 
         private string ReadStreamContents()
         {

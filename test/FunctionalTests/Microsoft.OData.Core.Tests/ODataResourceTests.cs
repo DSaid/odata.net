@@ -33,7 +33,7 @@ namespace Microsoft.OData.Tests
                 }
             };
             var serializationInfo = new ODataResourceSerializationInfo { NavigationSourceName = "Set", NavigationSourceEntityTypeName = "ns.BaseType", ExpectedTypeName = "ns.BaseType" };
-            var typeContext = ODataResourceTypeContext.Create(serializationInfo, null, null, null, true);
+            var typeContext = ODataResourceTypeContext.Create(serializationInfo, null, null, null);
             var metadataContext = new TestMetadataContext();
             var entryMetadataContext = ODataResourceMetadataContext.Create(this.odataEntryWithFullBuilder, typeContext, serializationInfo, null, metadataContext, new SelectedPropertiesNode(SelectedPropertiesNode.SelectionType.EntireSubtree), null);
             this.odataEntryWithFullBuilder.MetadataBuilder =
@@ -171,21 +171,13 @@ namespace Microsoft.OData.Tests
             this.odataEntry.InstanceAnnotations.Add(new ODataInstanceAnnotation("namespace.name", new ODataPrimitiveValue("value")));
             Assert.Single(this.odataEntry.InstanceAnnotations);
         }
-#if NETCOREAPP3_1
+
         [Fact]
         public void SetNullValueToInstanceAnnotationsPropertyShouldThrow()
         {
             Action test = () => this.odataEntry.InstanceAnnotations = null;
             test.Throws<ArgumentNullException>("Value cannot be null. (Parameter 'value')");
         }
-#else
-        [Fact]
-        public void SetNullValueToInstanceAnnotationsPropertyShouldThrow()
-        {
-            Action test = () => this.odataEntry.InstanceAnnotations = null;
-            test.Throws<ArgumentNullException>("Value cannot be null.\r\nParameter name: value");
-        }
-#endif
 
         [Fact]
         public void SetListValueToInstanceAnnotationsPropertyShouldPass()
@@ -315,6 +307,43 @@ namespace Microsoft.OData.Tests
 
             var exception = Assert.Throws<ODataException>(test);
             Assert.Equal(Strings.ODataResource_PropertyValueCannotBeODataResourceValue("CollectionProperty"), exception.Message);
+        }
+
+        [Fact]
+        public void WhenSkipPropertyVerificatonIsTrue_ODataResourcePropertyWithODataResourceValue_DoesNotThrow()
+        {
+            ODataResource resource = new ODataResource
+            {
+                TypeName = "NS.Resource",
+                SkipPropertyVerification = true
+            };
+
+            resource.Properties = new[]
+            {
+                new ODataProperty { Name = "ResourceProperty", Value = new ODataResourceValue() }
+            };
+        }
+
+        [Fact]
+        public void WhenSkipPropertyVerificatonIsTrue_ODataResourcePropertyWithCollectionODataResourceValue_DoesNotThrow()
+        {
+            ODataResource resource = new ODataResource
+            {
+                TypeName = "NS.Resource",
+                SkipPropertyVerification = true
+            };
+
+            resource.Properties = new[]
+            {
+                new ODataProperty
+                {
+                    Name = "CollectionProperty",
+                    Value = new ODataCollectionValue
+                    {
+                        Items = new [] { new ODataResourceValue() }
+                    }
+                }
+            };
         }
     }
 }

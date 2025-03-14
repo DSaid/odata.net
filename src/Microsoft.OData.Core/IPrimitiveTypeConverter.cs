@@ -7,9 +7,6 @@
 namespace Microsoft.OData
 {
     #region Namespaces
-
-    using System.IO;
-    using System.Xml;
     using Microsoft.OData.Json;
     #endregion
 
@@ -19,24 +16,10 @@ namespace Microsoft.OData
     internal interface IPrimitiveTypeConverter
     {
         /// <summary>
-        /// Write the Atom representation of an instance of a primitive type to an XmlWriter.
-        /// </summary>
-        /// <param name="instance">The instance to write.</param>
-        /// <param name="writer">The Xml writer to use to write the instance.</param>
-        void WriteAtom(object instance, XmlWriter writer);
-
-        /// <summary>
-        /// Write the Atom representation of an instance of a primitive type to an TextWriter.
-        /// </summary>
-        /// <param name="instance">The instance to write.</param>
-        /// <param name="writer">The text writer to use to write the instance.</param>
-        void WriteAtom(object instance, TextWriter writer);
-
-        /// <summary>
-        /// Write the Json Lite representation of an instance of a primitive type to a json writer.
+        /// Write the Json representation of an instance of a primitive type to a json writer.
         /// </summary>
         /// <param name="instance">The instance to write.</param>
         /// <param name="jsonWriter">Instance of JsonWriter.</param>
-        void WriteJsonLight(object instance, IJsonWriter jsonWriter);
+        void WriteJson(object instance, IJsonWriter jsonWriter);
     }
 }

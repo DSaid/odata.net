@@ -15,7 +15,7 @@ namespace Microsoft.OData.UriParser
     /// <summary>
     /// A segment representing an singleton in a path.
     /// </summary>
-    public sealed class SingletonSegment : ODataPathSegment
+    public sealed class SingletonSegment : ODataPathSegment, INavigationSourceSegment
     {
         /// <summary>
         /// The singleton represented by this segment.
@@ -33,8 +33,9 @@ namespace Microsoft.OData.UriParser
 
             this.singleton = singleton;
 
+            this.Identifier = singleton.Name;
             this.TargetEdmNavigationSource = singleton;
-            this.TargetEdmType = singleton.EntityType();
+            this.TargetEdmType = singleton.EntityType;
             this.TargetKind = RequestTargetKind.Resource;
             this.SingleResult = true;
         }
@@ -53,7 +54,15 @@ namespace Microsoft.OData.UriParser
         /// </summary>
         public override IEdmType EdmType
         {
-            get { return this.singleton.EntityType(); }
+            get { return this.singleton.EntityType; }
+        }
+
+        /// <summary>
+        /// The navigation source targeted by this segment.
+        /// </summary>
+        public IEdmNavigationSource NavigationSource
+        {
+            get { return this.singleton; }
         }
 
         /// <summary>

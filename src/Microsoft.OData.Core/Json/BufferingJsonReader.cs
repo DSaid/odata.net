@@ -13,14 +13,13 @@ namespace Microsoft.OData.Json
     using System.Diagnostics;
     using System.IO;
     using System.Threading.Tasks;
-    using Microsoft.OData.JsonLight;
 
     #endregion Namespaces
 
     /// <summary>
     /// Reader for the JSON format (http://www.json.org) that supports look-ahead.
     /// </summary>
-    internal class BufferingJsonReader : IJsonStreamReader, IJsonStreamReaderAsync
+    internal class BufferingJsonReader : IJsonReader
     {
         /// <summary>The (possibly empty) list of buffered nodes.</summary>
         /// <remarks>This is a circular linked list where this field points to the first item of the list.</remarks>
@@ -35,11 +34,6 @@ namespace Microsoft.OData.Json
         /// The inner JSON reader.
         /// </summary>
         private readonly IJsonReader innerReader;
-
-        /// <summary>
-        /// The inner asynchronous JSON reader.
-        /// </summary>
-        private readonly IJsonReaderAsync asyncInnerReader;
 
         /// <summary>
         /// The maximum number of recursive internalexception objects to allow when reading in-stream errors.
@@ -80,11 +74,6 @@ namespace Microsoft.OData.Json
             Debug.Assert(innerReader != null, "innerReader != null");
 
             this.innerReader = innerReader;
-            // IJsonReaderAsync inherits from IJsonReader in the current case
-            if (innerReader is IJsonReaderAsync asyncInnerReader)
-            {
-                this.asyncInnerReader = asyncInnerReader;
-            }
 
             this.inStreamErrorPropertyName = inStreamErrorPropertyName;
             this.maxInnerErrorDepth = maxInnerErrorDepth;
@@ -127,24 +116,21 @@ namespace Microsoft.OData.Json
         /// Depending on whether buffering is on or off this will return the node type of the last
         /// buffered read or the node type of the last unbuffered read.
         /// </remarks>
-        public object Value
+        public object GetValue()
         {
-            get
+            if (this.bufferedNodesHead != null)
             {
-                if (this.bufferedNodesHead != null)
+                if (this.isBuffering)
                 {
-                    if (this.isBuffering)
-                    {
-                        Debug.Assert(this.currentBufferedNode != null, "this.currentBufferedNode != null");
-                        return this.currentBufferedNode.Value;
-                    }
-
-                    // in non-buffering mode if we have buffered nodes satisfy the request from the first node there
-                    return this.bufferedNodesHead.Value;
+                    Debug.Assert(this.currentBufferedNode != null, "this.currentBufferedNode != null");
+                    return this.currentBufferedNode.Value;
                 }
 
-                return this.innerReader.Value;
+                // in non-buffering mode if we have buffered nodes satisfy the request from the first node there
+                return this.bufferedNodesHead.Value;
             }
+
+            return this.innerReader.GetValue();
         }
 
         /// <summary>
@@ -195,14 +181,14 @@ namespace Microsoft.OData.Json
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1825:Avoid zero-length array allocations.", Justification = "<Pending>")]
         public virtual Stream CreateReadStream()
         {
-            IJsonStreamReader streamReader = this.innerReader as IJsonStreamReader;
-            if (!this.isBuffering && streamReader != null)
+            if (!this.isBuffering)
             {
-                return streamReader.CreateReadStream();
+                return this.innerReader.CreateReadStream();
             }
 
-            Stream result = new MemoryStream(this.Value == null ? new byte[0] :
-                           Convert.FromBase64String((string)this.Value));
+            object value = this.GetValue();
+            Stream result = value == null ? Stream.Null :
+                new MemoryStream(Convert.FromBase64String((string)value));
             this.innerReader.Read();
             return result;
         }
@@ -213,13 +199,13 @@ namespace Microsoft.OData.Json
         /// <returns>A TextReader for reading the text value.</returns>
         public virtual TextReader CreateTextReader()
         {
-            IJsonStreamReader streamReader = this.innerReader as IJsonStreamReader;
-            if (!this.isBuffering && streamReader != null)
+            if (!this.isBuffering)
             {
-                return streamReader.CreateTextReader();
+                return this.innerReader.CreateTextReader();
             }
 
-            TextReader result = new StringReader(this.Value == null ? "" : (string)this.Value);
+            object value = this.GetValue();
+            TextReader result = new StringReader(value == null ? "" : (string)value);
             this.innerReader.Read();
             return result;
         }
@@ -230,13 +216,13 @@ namespace Microsoft.OData.Json
         /// <returns>True if the current value can be streamed, otherwise false</returns>
         public virtual bool CanStream()
         {
-            IJsonStreamReader streamReader = this.innerReader as IJsonStreamReader;
-            if (!this.isBuffering && streamReader != null)
+            if (!this.isBuffering)
             {
-                return streamReader.CanStream();
+                return this.innerReader.CanStream();
             }
 
-            return (this.Value is string || this.Value == null || this.NodeType == JsonNodeType.StartArray || this.NodeType == JsonNodeType.StartObject);
+            object value = this.GetValue();
+            return (value is string || value == null || this.NodeType == JsonNodeType.StartArray || this.NodeType == JsonNodeType.StartObject);
         }
 
         /// <summary>
@@ -277,7 +263,7 @@ namespace Microsoft.OData.Json
                 return Task.FromResult(this.bufferedNodesHead.Value);
             }
 
-            return this.asyncInnerReader.GetValueAsync();
+            return this.innerReader.GetValueAsync();
         }
 
         /// <summary>
@@ -303,9 +289,9 @@ namespace Microsoft.OData.Json
         {
             this.AssertAsynchronous();
 
-            if (!this.isBuffering && this.asyncInnerReader is IJsonStreamReaderAsync asyncStreamReader)
+            if (!this.isBuffering)
             {
-                return await asyncStreamReader.CanStreamAsync()
+                return await this.innerReader.CanStreamAsync()
                     .ConfigureAwait(false);
             }
 
@@ -324,10 +310,9 @@ namespace Microsoft.OData.Json
         {
             this.AssertAsynchronous();
 
-            IJsonStreamReaderAsync asyncStreamReader = this.asyncInnerReader as IJsonStreamReaderAsync;
-            if (!this.isBuffering && asyncStreamReader != null)
+            if (!this.isBuffering)
             {
-                return await asyncStreamReader.CreateReadStreamAsync()
+                return await this.innerReader.CreateReadStreamAsync()
                     .ConfigureAwait(false);
             }
 
@@ -338,14 +323,14 @@ namespace Microsoft.OData.Json
 
             if (value == null)
             {
-                result = new MemoryStream(new byte[0]);
+                result = Stream.Null;
             }
             else
             {
                 result = new MemoryStream(Convert.FromBase64String((string)value));
             }
 
-            await this.asyncInnerReader.ReadAsync()
+            await this.innerReader.ReadAsync()
                 .ConfigureAwait(false);
 
             return result;
@@ -360,10 +345,9 @@ namespace Microsoft.OData.Json
         {
             this.AssertAsynchronous();
 
-            IJsonStreamReaderAsync asyncStreamReader = this.asyncInnerReader as IJsonStreamReaderAsync;
-            if (!this.isBuffering && asyncStreamReader != null)
+            if (!this.isBuffering)
             {
-                return await asyncStreamReader.CreateTextReaderAsync()
+                return await this.innerReader.CreateTextReaderAsync()
                     .ConfigureAwait(false);
             }
 
@@ -382,7 +366,7 @@ namespace Microsoft.OData.Json
             }
 
 
-            await this.asyncInnerReader.ReadAsync()
+            await this.innerReader.ReadAsync()
                 .ConfigureAwait(false);
 
             return result;
@@ -398,7 +382,7 @@ namespace Microsoft.OData.Json
             if (this.bufferedNodesHead == null)
             {
                 // capture the current state of the reader as the first item in the buffer (if there are none)
-                this.bufferedNodesHead = new BufferedNode(this.innerReader.NodeType, this.innerReader.Value);
+                this.bufferedNodesHead = new BufferedNode(this.innerReader.NodeType, this.innerReader.GetValue());
             }
             else
             {
@@ -507,8 +491,8 @@ namespace Microsoft.OData.Json
             {
                 // capture the current state of the reader as the first item in the buffer (if there are none)
                 this.bufferedNodesHead = new BufferedNode(
-                    this.asyncInnerReader.NodeType,
-                    await this.asyncInnerReader.GetValueAsync().ConfigureAwait(false));
+                    this.innerReader.NodeType,
+                    await this.innerReader.GetValueAsync().ConfigureAwait(false));
             }
             else
             {
@@ -536,7 +520,7 @@ namespace Microsoft.OData.Json
         /// The value of the TResult parameter contains a tuple comprising of:
         /// 1). A value of true if the current value is an in-stream error value; otherwise false.
         /// 2). An <see cref="ODataError"/> instance that was read from the payload.</returns>
-        internal async Task<Tuple<bool, ODataError>> StartBufferingAndTryToReadInStreamErrorPropertyValueAsync()
+        internal async Task<(bool IsReadSuccessfully, ODataError Error)> StartBufferingAndTryToReadInStreamErrorPropertyValueAsync()
         {
             this.AssertNotBuffering();
             this.AssertAsynchronous();
@@ -547,8 +531,9 @@ namespace Microsoft.OData.Json
 
             try
             {
-                Tuple<bool, ODataError> readInStreamErrorPropertyResult = await this.TryReadInStreamErrorPropertyValueAsync()
+                (bool IsReadSuccessfully, ODataError Error) readInStreamErrorPropertyResult = await this.TryReadInStreamErrorPropertyValueAsync()
                     .ConfigureAwait(false);
+
                 return readInStreamErrorPropertyResult;
             }
             finally
@@ -597,7 +582,7 @@ namespace Microsoft.OData.Json
                         result = this.innerReader.Read();
 
                         // Add the new node to the end
-                        this.AddNewNodeToTheEndOfBufferedNodesList(this.innerReader.NodeType, this.innerReader.Value);
+                        this.AddNewNodeToTheEndOfBufferedNodesList(this.innerReader.NodeType, this.innerReader.GetValue());
                     }
                     else
                     {
@@ -723,13 +708,13 @@ namespace Microsoft.OData.Json
                 else if (this.parsingInStreamError)
                 {
                     // Read more from the input stream and buffer it
-                    result = await this.asyncInnerReader.ReadAsync()
+                    result = await this.innerReader.ReadAsync()
                         .ConfigureAwait(false);
 
                     // Add the new node to the end
                     this.AddNewNodeToTheEndOfBufferedNodesList(
-                        this.asyncInnerReader.NodeType,
-                        await this.asyncInnerReader.GetValueAsync().ConfigureAwait(false));
+                        this.innerReader.NodeType,
+                        await this.innerReader.GetValueAsync().ConfigureAwait(false));
                 }
                 else
                 {
@@ -745,7 +730,7 @@ namespace Microsoft.OData.Json
                 // else read the next node from the input stream and check
                 // whether it is an in-stream error
                 result = this.parsingInStreamError ?
-                    await this.asyncInnerReader.ReadAsync().ConfigureAwait(false) :
+                    await this.innerReader.ReadAsync().ConfigureAwait(false) :
                     await this.ReadNextAndCheckForInStreamErrorAsync().ConfigureAwait(false);
             }
             else
@@ -786,7 +771,7 @@ namespace Microsoft.OData.Json
 
                 // We only consider this to be an in-stream error if the object has a single 'error' property
                 bool errorPropertyFound = false;
-                Tuple<bool, ODataError> readInStreamErrorPropertyResult = null;
+                (bool IsReadSuccessfully, ODataError Error)? readInStreamErrorPropertyResult = null;
 
                 while (this.currentBufferedNode.NodeType == JsonNodeType.Property)
                 {
@@ -807,7 +792,7 @@ namespace Microsoft.OData.Json
 
                     readInStreamErrorPropertyResult = await this.TryReadInStreamErrorPropertyValueAsync()
                         .ConfigureAwait(false);
-                    if (!readInStreamErrorPropertyResult.Item1)
+                    if (readInStreamErrorPropertyResult?.IsReadSuccessfully == false)
                     {
                         // This means we thought we saw an in-stream error, but then
                         // we didn't see an intelligible error object, so we give up on reading the in-stream error
@@ -818,7 +803,7 @@ namespace Microsoft.OData.Json
 
                 if (errorPropertyFound)
                 {
-                    throw new ODataErrorException(readInStreamErrorPropertyResult.Item2);
+                    throw new ODataErrorException(readInStreamErrorPropertyResult?.Error);
                 }
             }
         }
@@ -901,7 +886,7 @@ namespace Microsoft.OData.Json
             error = new ODataError();
 
             // we expect one of the supported properties for the value (or end-object)
-            ODataJsonLightReaderUtils.ErrorPropertyBitMask propertiesFoundBitmask = ODataJsonLightReaderUtils.ErrorPropertyBitMask.None;
+            ODataJsonReaderUtils.ErrorPropertyBitMask propertiesFoundBitmask = ODataJsonReaderUtils.ErrorPropertyBitMask.None;
             while (this.currentBufferedNode.NodeType == JsonNodeType.Property)
             {
                 // NOTE the Json reader already ensures that the value of a property node is a string
@@ -909,7 +894,7 @@ namespace Microsoft.OData.Json
                 switch (propertyName)
                 {
                     case JsonConstants.ODataErrorCodeName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonLightReaderUtils.ErrorPropertyBitMask.Code))
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonReaderUtils.ErrorPropertyBitMask.Code))
                         {
                             return false;
                         }
@@ -917,7 +902,7 @@ namespace Microsoft.OData.Json
                         string errorCode;
                         if (this.TryReadErrorStringPropertyValue(out errorCode))
                         {
-                            error.ErrorCode = errorCode;
+                            error.Code = errorCode;
                         }
                         else
                         {
@@ -927,7 +912,7 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorMessageName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonLightReaderUtils.ErrorPropertyBitMask.Message))
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonReaderUtils.ErrorPropertyBitMask.Message))
                         {
                             return false;
                         }
@@ -945,9 +930,9 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorTargetName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.Target))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.Target))
                         {
                             return false;
                         }
@@ -965,9 +950,9 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorDetailsName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                                 ref propertiesFoundBitmask,
-                                ODataJsonLightReaderUtils.ErrorPropertyBitMask.Details))
+                                ODataJsonReaderUtils.ErrorPropertyBitMask.Details))
                         {
                             return false;
                         }
@@ -982,7 +967,7 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorInnerErrorName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonLightReaderUtils.ErrorPropertyBitMask.InnerError))
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonReaderUtils.ErrorPropertyBitMask.InnerError))
                         {
                             return false;
                         }
@@ -1009,7 +994,7 @@ namespace Microsoft.OData.Json
             this.ReadInternal();
 
             // if we don't find any properties it is not a valid error object
-            return propertiesFoundBitmask != ODataJsonLightReaderUtils.ErrorPropertyBitMask.None;
+            return propertiesFoundBitmask != ODataJsonReaderUtils.ErrorPropertyBitMask.None;
         }
 
         private bool TryReadErrorDetailsPropertyValue(out ICollection<ODataErrorDetail> details)
@@ -1034,14 +1019,19 @@ namespace Microsoft.OData.Json
             ReadInternal();
 
             details = new List<ODataErrorDetail>();
-            ODataErrorDetail detail;
-            if (TryReadErrorDetail(out detail))
-            {
-                details.Add(detail);
-            }
 
-            // ]
-            ReadInternal();
+            while (this.currentBufferedNode.NodeType != JsonNodeType.EndArray)
+            {
+                ODataErrorDetail detail;
+                if (!TryReadErrorDetail(out detail))
+                {
+                    return false;
+                }
+
+                details.Add(detail);
+                // ] or { (next error detail object)
+                ReadInternal();
+            }
 
             return true;
         }
@@ -1066,7 +1056,7 @@ namespace Microsoft.OData.Json
             detail = new ODataErrorDetail();
 
             // we expect one of the supported properties for the value (or end-object)
-            var propertiesFoundBitmask = ODataJsonLightReaderUtils.ErrorPropertyBitMask.None;
+            var propertiesFoundBitmask = ODataJsonReaderUtils.ErrorPropertyBitMask.None;
             while (this.currentBufferedNode.NodeType == JsonNodeType.Property)
             {
                 var propertyName = (string)this.currentBufferedNode.Value;
@@ -1074,9 +1064,9 @@ namespace Microsoft.OData.Json
                 switch (propertyName)
                 {
                     case JsonConstants.ODataErrorCodeName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                                 ref propertiesFoundBitmask,
-                                ODataJsonLightReaderUtils.ErrorPropertyBitMask.Code))
+                                ODataJsonReaderUtils.ErrorPropertyBitMask.Code))
                         {
                             return false;
                         }
@@ -1084,7 +1074,7 @@ namespace Microsoft.OData.Json
                         string code;
                         if (this.TryReadErrorStringPropertyValue(out code))
                         {
-                            detail.ErrorCode = code;
+                            detail.Code = code;
                         }
                         else
                         {
@@ -1094,9 +1084,9 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorTargetName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                                 ref propertiesFoundBitmask,
-                                ODataJsonLightReaderUtils.ErrorPropertyBitMask.Target))
+                                ODataJsonReaderUtils.ErrorPropertyBitMask.Target))
                         {
                             return false;
                         }
@@ -1114,9 +1104,9 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorMessageName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                                 ref propertiesFoundBitmask,
-                                ODataJsonLightReaderUtils.ErrorPropertyBitMask.MessageValue))
+                                ODataJsonReaderUtils.ErrorPropertyBitMask.MessageValue))
                         {
                             return false;
                         }
@@ -1179,7 +1169,7 @@ namespace Microsoft.OData.Json
             innerError = new ODataInnerError();
 
             // we expect one of the supported properties for the value (or end-object)
-            ODataJsonLightReaderUtils.ErrorPropertyBitMask propertiesFoundBitmask = ODataJsonLightReaderUtils.ErrorPropertyBitMask.None;
+            ODataJsonReaderUtils.ErrorPropertyBitMask propertiesFoundBitmask = ODataJsonReaderUtils.ErrorPropertyBitMask.None;
             while (this.currentBufferedNode.NodeType == JsonNodeType.Property)
             {
                 // NOTE the Json reader already ensures that the value of a property node is a string
@@ -1188,7 +1178,7 @@ namespace Microsoft.OData.Json
                 switch (propertyName)
                 {
                     case JsonConstants.ODataErrorInnerErrorMessageName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonLightReaderUtils.ErrorPropertyBitMask.MessageValue))
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonReaderUtils.ErrorPropertyBitMask.MessageValue))
                         {
                             return false;
                         }
@@ -1196,7 +1186,7 @@ namespace Microsoft.OData.Json
                         string message;
                         if (this.TryReadErrorStringPropertyValue(out message))
                         {
-                            innerError.Message = message;
+                            innerError.Properties.Add(JsonConstants.ODataErrorInnerErrorMessageName, new ODataPrimitiveValue(message));
                         }
                         else
                         {
@@ -1206,7 +1196,7 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorInnerErrorTypeNameName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonLightReaderUtils.ErrorPropertyBitMask.TypeName))
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonReaderUtils.ErrorPropertyBitMask.TypeName))
                         {
                             return false;
                         }
@@ -1214,7 +1204,7 @@ namespace Microsoft.OData.Json
                         string typeName;
                         if (this.TryReadErrorStringPropertyValue(out typeName))
                         {
-                            innerError.TypeName = typeName;
+                            innerError.Properties.Add(JsonConstants.ODataErrorInnerErrorTypeNameName, new ODataPrimitiveValue(typeName));
                         }
                         else
                         {
@@ -1224,7 +1214,7 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorInnerErrorStackTraceName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonLightReaderUtils.ErrorPropertyBitMask.StackTrace))
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonReaderUtils.ErrorPropertyBitMask.StackTrace))
                         {
                             return false;
                         }
@@ -1232,7 +1222,7 @@ namespace Microsoft.OData.Json
                         string stackTrace;
                         if (this.TryReadErrorStringPropertyValue(out stackTrace))
                         {
-                            innerError.StackTrace = stackTrace;
+                            innerError.Properties.Add(JsonConstants.ODataErrorInnerErrorStackTraceName, new ODataPrimitiveValue(stackTrace));
                         }
                         else
                         {
@@ -1242,7 +1232,8 @@ namespace Microsoft.OData.Json
                         break;
 
                     case JsonConstants.ODataErrorInnerErrorInnerErrorName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonLightReaderUtils.ErrorPropertyBitMask.InnerError))
+                    case JsonConstants.ODataErrorInnerErrorName:
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(ref propertiesFoundBitmask, ODataJsonReaderUtils.ErrorPropertyBitMask.InnerError))
                         {
                             return false;
                         }
@@ -1367,7 +1358,7 @@ namespace Microsoft.OData.Json
                 bool result = await this.ReadInternalAsync()
                     .ConfigureAwait(false);
 
-                if (this.asyncInnerReader.NodeType == JsonNodeType.StartObject)
+                if (this.innerReader.NodeType == JsonNodeType.StartObject)
                 {
                     // If we find a StartObject node we have to read ahead and check whether this
                     // JSON object represents an in-stream error. If we are currently in buffering
@@ -1415,7 +1406,7 @@ namespace Microsoft.OData.Json
         /// The value of the TResult parameter contains a tuple comprising of:
         /// 1). A value of true if an <see cref="ODataError"/> instance that was read; otherwise false.
         /// 2). An <see cref="ODataError"/> instance that was read from the reader or null if none could be read.</returns>
-        private async Task<Tuple<bool, ODataError>> TryReadInStreamErrorPropertyValueAsync()
+        private async Task<(bool IsReadSuccessfully, ODataError Error)> TryReadInStreamErrorPropertyValueAsync()
         {
             Debug.Assert(this.parsingInStreamError, "this.parsingInStreamError");
             this.AssertBuffering();
@@ -1424,7 +1415,7 @@ namespace Microsoft.OData.Json
             // We expect a StartObject node here
             if (this.currentBufferedNode.NodeType != JsonNodeType.StartObject)
             {
-                return Tuple.Create(false, (ODataError)null);
+                return (false, (ODataError)null);
             }
 
             // Read the StartObject node
@@ -1434,7 +1425,7 @@ namespace Microsoft.OData.Json
             ODataError error = new ODataError();
 
             // We expect one of the supported properties for the value (or EndObject)
-            ODataJsonLightReaderUtils.ErrorPropertyBitMask propertiesFoundBitmask = ODataJsonLightReaderUtils.ErrorPropertyBitMask.None;
+            ODataJsonReaderUtils.ErrorPropertyBitMask propertiesFoundBitmask = ODataJsonReaderUtils.ErrorPropertyBitMask.None;
             while (this.currentBufferedNode.NodeType == JsonNodeType.Property)
             {
                 // NOTE: The JSON reader already ensures that the value of a property node is a string
@@ -1442,90 +1433,90 @@ namespace Microsoft.OData.Json
                 switch (propertyName)
                 {
                     case JsonConstants.ODataErrorCodeName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.Code))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.Code))
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
-                        Tuple<bool, string> readErrorCodePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorCodePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorCodePropertyResult.Item1)
+                        if (!readErrorCodePropertyResult.IsReadSuccessfully)
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
-                        error.ErrorCode = readErrorCodePropertyResult.Item2;
+                        error.Code = readErrorCodePropertyResult.PropertyValue;
                         break;
 
                     case JsonConstants.ODataErrorMessageName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.Message))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.Message))
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
-                        Tuple<bool, string> readErrorMessagePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorMessagePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorMessagePropertyResult.Item1)
+                        if (!readErrorMessagePropertyResult.IsReadSuccessfully)
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
-                        error.Message = readErrorMessagePropertyResult.Item2;
+                        error.Message = readErrorMessagePropertyResult.PropertyValue;
                         break;
 
                     case JsonConstants.ODataErrorTargetName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.Target))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.Target))
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
-                        Tuple<bool, string> readErrorTargetPropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorTargetPropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorTargetPropertyResult.Item1)
+                        if (!readErrorTargetPropertyResult.IsReadSuccessfully)
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
                         error.Target = readErrorTargetPropertyResult.Item2;
                         break;
 
                     case JsonConstants.ODataErrorDetailsName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                                 ref propertiesFoundBitmask,
-                                ODataJsonLightReaderUtils.ErrorPropertyBitMask.Details))
+                                ODataJsonReaderUtils.ErrorPropertyBitMask.Details))
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
-                        Tuple<bool, List<ODataErrorDetail>> readErrorDetailsPropertyResult = await this.TryReadErrorDetailsPropertyValueAsync()
+                        (bool IsReadSuccessfully, List<ODataErrorDetail> ErrorDetails) readErrorDetailsPropertyResult = await this.TryReadErrorDetailsPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorDetailsPropertyResult.Item1)
+                        if (!readErrorDetailsPropertyResult.IsReadSuccessfully)
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
-                        error.Details = readErrorDetailsPropertyResult.Item2;
+                        error.Details = readErrorDetailsPropertyResult.ErrorDetails;
                         break;
 
                     case JsonConstants.ODataErrorInnerErrorName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.InnerError))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.InnerError))
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
                         Tuple<bool, ODataInnerError> readInnerErrorPropertyResult = await this.TryReadInnerErrorPropertyValueAsync(0 /*recursionDepth */)
                             .ConfigureAwait(false);
                         if (!readInnerErrorPropertyResult.Item1)
                         {
-                            return Tuple.Create(false, error);
+                            return (false, error);
                         }
 
                         error.InnerError = readInnerErrorPropertyResult.Item2;
@@ -1533,7 +1524,7 @@ namespace Microsoft.OData.Json
 
                     default:
                         // If we find a non-supported property we don't treat this as an error
-                        return Tuple.Create(false, error);
+                        return (false, error);
                 }
 
                 await this.ReadInternalAsync()
@@ -1549,8 +1540,7 @@ namespace Microsoft.OData.Json
                 .ConfigureAwait(false);
 
             // If we don't find any properties it is not a valid error object
-            return Tuple.Create(
-                propertiesFoundBitmask != ODataJsonLightReaderUtils.ErrorPropertyBitMask.None,
+            return (propertiesFoundBitmask != ODataJsonReaderUtils.ErrorPropertyBitMask.None,
                 error);
         }
 
@@ -1561,7 +1551,7 @@ namespace Microsoft.OData.Json
         /// The value of the TResult parameter contains a tuple comprising of:
         /// 1). A value of true if an <see cref="ODataErrorDetail"/> collection was read; otherwise false.
         /// 2). An <see cref="ODataErrorDetail"/> collection that was read from the reader or null if none could be read.</returns>
-        private async Task<Tuple<bool, List<ODataErrorDetail>>> TryReadErrorDetailsPropertyValueAsync()
+        private async Task<(bool IsReadSuccessfully, List<ODataErrorDetail> ErrorDetails)> TryReadErrorDetailsPropertyValueAsync()
         {
             Debug.Assert(
                 this.currentBufferedNode.NodeType == JsonNodeType.Property,
@@ -1577,7 +1567,7 @@ namespace Microsoft.OData.Json
             // We expect a StartArray node here
             if (this.currentBufferedNode.NodeType != JsonNodeType.StartArray)
             {
-                return Tuple.Create(false, (List<ODataErrorDetail>)null);
+                return (false, (List<ODataErrorDetail>)null);
             }
 
             // [
@@ -1586,20 +1576,24 @@ namespace Microsoft.OData.Json
 
             List<ODataErrorDetail> details = new List<ODataErrorDetail>();
 
-            Tuple<bool, ODataErrorDetail> readErrorDetailResult = await TryReadErrorDetailAsync()
-                .ConfigureAwait(false);
-            if (!readErrorDetailResult.Item1)
+            while (this.currentBufferedNode.NodeType != JsonNodeType.EndArray)
             {
-                return Tuple.Create(false, details);
+                (bool IsReadSuccessfully, ODataErrorDetail ErrorDetail) readErrorDetailResult = await TryReadErrorDetailAsync()
+                    .ConfigureAwait(false);
+
+                if (!readErrorDetailResult.IsReadSuccessfully)
+                {
+                    return (false, details);
+                }
+
+                details.Add(readErrorDetailResult.ErrorDetail);
+
+                // ] or { (next error detail object)
+                await ReadInternalAsync()
+                    .ConfigureAwait(false);
             }
 
-            details.Add(readErrorDetailResult.Item2);
-
-            // ]
-            await ReadInternalAsync()
-                .ConfigureAwait(false);
-
-            return Tuple.Create(true, details);
+            return (true, details);
         }
 
         /// <summary>
@@ -1609,7 +1603,7 @@ namespace Microsoft.OData.Json
         /// The value of the TResult parameter contains a tuple comprising of:
         /// 1). A value of true if an <see cref="ODataErrorDetail"/> instance was read; otherwise false.
         /// 2). An <see cref="ODataErrorDetail"/> instance that was read from the reader or null if none could be read.</returns>
-        private async Task<Tuple<bool, ODataErrorDetail>> TryReadErrorDetailAsync()
+        private async Task<(bool IsReadSuccessfully, ODataErrorDetail ErrorDetail)> TryReadErrorDetailAsync()
         {
             Debug.Assert(
                 this.currentBufferedNode.NodeType == JsonNodeType.StartObject,
@@ -1620,7 +1614,7 @@ namespace Microsoft.OData.Json
 
             if (this.currentBufferedNode.NodeType != JsonNodeType.StartObject)
             {
-                return Tuple.Create(false, (ODataErrorDetail)null);
+                return (false, (ODataErrorDetail)null);
             }
 
             // {
@@ -1630,7 +1624,7 @@ namespace Microsoft.OData.Json
             ODataErrorDetail detail = new ODataErrorDetail();
 
             // We expect one of the supported properties for the value (or EndObject)
-            var propertiesFoundBitmask = ODataJsonLightReaderUtils.ErrorPropertyBitMask.None;
+            var propertiesFoundBitmask = ODataJsonReaderUtils.ErrorPropertyBitMask.None;
             while (this.currentBufferedNode.NodeType == JsonNodeType.Property)
             {
                 var propertyName = (string)this.currentBufferedNode.Value;
@@ -1638,57 +1632,57 @@ namespace Microsoft.OData.Json
                 switch (propertyName)
                 {
                     case JsonConstants.ODataErrorCodeName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                                 ref propertiesFoundBitmask,
-                                ODataJsonLightReaderUtils.ErrorPropertyBitMask.Code))
+                                ODataJsonReaderUtils.ErrorPropertyBitMask.Code))
                         {
-                            return Tuple.Create(false, detail);
+                            return (false, detail);
                         }
 
-                        Tuple<bool, string> readErrorCodePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorCodePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorCodePropertyResult.Item1)
+                        if (!readErrorCodePropertyResult.IsReadSuccessfully)
                         {
-                            return Tuple.Create(false, detail);
+                            return (false, detail);
                         }
 
-                        detail.ErrorCode = readErrorCodePropertyResult.Item2;
+                        detail.Code = readErrorCodePropertyResult.PropertyValue;
                         break;
 
                     case JsonConstants.ODataErrorTargetName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                                 ref propertiesFoundBitmask,
-                                ODataJsonLightReaderUtils.ErrorPropertyBitMask.Target))
+                                ODataJsonReaderUtils.ErrorPropertyBitMask.Target))
                         {
-                            return Tuple.Create(false, detail);
+                            return (false, detail);
                         }
 
-                        Tuple<bool, string> readErrorTargetPropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorTargetPropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorTargetPropertyResult.Item1)
+                        if (!readErrorTargetPropertyResult.IsReadSuccessfully)
                         {
-                            return Tuple.Create(false, detail);
+                            return (false, detail);
                         }
 
-                        detail.Target = readErrorTargetPropertyResult.Item2;
+                        detail.Target = readErrorTargetPropertyResult.PropertyValue;
                         break;
 
                     case JsonConstants.ODataErrorMessageName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                                 ref propertiesFoundBitmask,
-                                ODataJsonLightReaderUtils.ErrorPropertyBitMask.MessageValue))
+                                ODataJsonReaderUtils.ErrorPropertyBitMask.MessageValue))
                         {
-                            return Tuple.Create(false, detail);
+                            return (false, detail);
                         }
 
-                        Tuple<bool, string> readErrorMessagePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorMessagePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorMessagePropertyResult.Item1)
+                        if (!readErrorMessagePropertyResult.IsReadSuccessfully)
                         {
-                            return Tuple.Create(false, detail);
+                            return (false, detail);
                         }
 
-                        detail.Message = readErrorMessagePropertyResult.Item2;
+                        detail.Message = readErrorMessagePropertyResult.PropertyValue;
                         break;
 
                     default:
@@ -1706,7 +1700,7 @@ namespace Microsoft.OData.Json
                 this.currentBufferedNode.NodeType == JsonNodeType.EndObject,
                 "this.currentBufferedNode.NodeType == JsonNodeType.EndObject");
 
-            return Tuple.Create(true, detail);
+            return (true, detail);
         }
 
         /// <summary>
@@ -1743,7 +1737,7 @@ namespace Microsoft.OData.Json
             ODataInnerError innerError = new ODataInnerError();
 
             // We expect one of the supported properties for the value (or EndObject)
-            ODataJsonLightReaderUtils.ErrorPropertyBitMask propertiesFoundBitmask = ODataJsonLightReaderUtils.ErrorPropertyBitMask.None;
+            ODataJsonReaderUtils.ErrorPropertyBitMask propertiesFoundBitmask = ODataJsonReaderUtils.ErrorPropertyBitMask.None;
             while (this.currentBufferedNode.NodeType == JsonNodeType.Property)
             {
                 // NOTE: The JSON reader already ensures that the value of a property node is a string
@@ -1752,63 +1746,70 @@ namespace Microsoft.OData.Json
                 switch (propertyName)
                 {
                     case JsonConstants.ODataErrorInnerErrorMessageName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.MessageValue))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.MessageValue))
                         {
                             return Tuple.Create(false, innerError);
                         }
 
-                        Tuple<bool, string> readErrorMessagePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorMessagePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorMessagePropertyResult.Item1)
+                        if (!readErrorMessagePropertyResult.IsReadSuccessfully)
                         {
                             return Tuple.Create(false, innerError);
                         }
 
-                        innerError.Message = readErrorMessagePropertyResult.Item2;
+                        innerError.Properties.Add(
+                            JsonConstants.ODataErrorInnerErrorMessageName,
+                            new ODataPrimitiveValue(readErrorMessagePropertyResult.PropertyValue));
                         break;
 
                     case JsonConstants.ODataErrorInnerErrorTypeNameName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.TypeName))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.TypeName))
                         {
                             return Tuple.Create(false, innerError);
                         }
 
-                        Tuple<bool, string> readErrorTypePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorTypePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorTypePropertyResult.Item1)
+                        if (!readErrorTypePropertyResult.IsReadSuccessfully)
                         {
                             return Tuple.Create(false, innerError);
                         }
 
-                        innerError.TypeName = readErrorTypePropertyResult.Item2;
+                        innerError.Properties.Add(
+                            JsonConstants.ODataErrorInnerErrorTypeNameName,
+                            new ODataPrimitiveValue(readErrorTypePropertyResult.PropertyValue));
                         break;
 
                     case JsonConstants.ODataErrorInnerErrorStackTraceName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.StackTrace))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.StackTrace))
                         {
                             return Tuple.Create(false, innerError);
                         }
 
-                        Tuple<bool, string> readErrorStackTracePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
+                        (bool IsReadSuccessfully, string PropertyValue) readErrorStackTracePropertyResult = await this.TryReadErrorStringPropertyValueAsync()
                             .ConfigureAwait(false);
-                        if (!readErrorStackTracePropertyResult.Item1)
+                        if (!readErrorStackTracePropertyResult.IsReadSuccessfully)
                         {
                             return Tuple.Create(false, innerError);
                         }
 
-                        innerError.StackTrace = readErrorStackTracePropertyResult.Item2;
+                        innerError.Properties.Add(
+                            JsonConstants.ODataErrorInnerErrorStackTraceName,
+                            new ODataPrimitiveValue(readErrorStackTracePropertyResult.PropertyValue));
                         break;
 
                     case JsonConstants.ODataErrorInnerErrorInnerErrorName:
-                        if (!ODataJsonLightReaderUtils.ErrorPropertyNotFound(
+                    case JsonConstants.ODataErrorInnerErrorName:
+                        if (!ODataJsonReaderUtils.ErrorPropertyNotFound(
                             ref propertiesFoundBitmask,
-                            ODataJsonLightReaderUtils.ErrorPropertyBitMask.InnerError))
+                            ODataJsonReaderUtils.ErrorPropertyBitMask.InnerError))
                         {
                             return Tuple.Create(false, innerError);
                         }
@@ -1848,7 +1849,7 @@ namespace Microsoft.OData.Json
         /// The value of the TResult parameter contains a tuple comprising of:
         /// 1). A value of true if a string value (or null) was read as property value of the current property; otherwise false.
         /// 2). The string value read if the method returns true; otherwise null.</returns>
-        private async Task<Tuple<bool, string>> TryReadErrorStringPropertyValueAsync()
+        private async Task<(bool IsReadSuccessfully, string PropertyValue)> TryReadErrorStringPropertyValueAsync()
         {
             Debug.Assert(this.currentBufferedNode.NodeType == JsonNodeType.Property, "this.currentBufferedNode.NodeType == JsonNodeType.Property");
             Debug.Assert(this.parsingInStreamError, "this.parsingInStreamError");
@@ -1860,7 +1861,7 @@ namespace Microsoft.OData.Json
 
             // We expect a string value
             string stringValue = this.currentBufferedNode.Value as string;
-            return Tuple.Create(
+            return (
                 this.currentBufferedNode.NodeType == JsonNodeType.PrimitiveValue && (this.currentBufferedNode.Value == null || stringValue != null),
                 stringValue);
         }
@@ -1930,7 +1931,7 @@ namespace Microsoft.OData.Json
         private void AssertAsynchronous()
         {
 #if DEBUG
-            Debug.Assert(this.asyncInnerReader != null, "The method should only be called on an asynchronous buffering json reader.");
+            Debug.Assert(this.innerReader != null, "The method should only be called on an asynchronous buffering json reader.");
 #endif
         }
 

@@ -18,7 +18,7 @@ namespace Microsoft.Test.Taupo.OData.Reader.Tests.Json
     using Microsoft.Test.Taupo.OData.Contracts;
     using Microsoft.Test.Taupo.OData.Contracts.Json;
     using Microsoft.Test.Taupo.OData.Json;
-    using Microsoft.Test.Taupo.OData.JsonLight;
+    using Microsoft.Test.Taupo.OData.Json;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
     #endregion Namespaces.
 
@@ -56,7 +56,7 @@ namespace Microsoft.Test.Taupo.OData.Reader.Tests.Json
                 new
                 {
                     Json = "{{ \"{0}\": {{ \"code\": \"my-error-code\" }} }}",
-                    ExpectedException = ODataExpectedExceptions.ODataErrorException(new ODataError { ErrorCode = "my-error-code" }) 
+                    ExpectedException = ODataExpectedExceptions.ODataErrorException(new ODataError { Code = "my-error-code" }) 
                 },
                 new
                 {
@@ -66,12 +66,12 @@ namespace Microsoft.Test.Taupo.OData.Reader.Tests.Json
                 new
                 {
                     Json = "{{ \"{0}\": {{ \"code\": \"my-error-code\", \"message\": \"my-error-message\" }} }}",
-                    ExpectedException = ODataExpectedExceptions.ODataErrorException(new ODataError { ErrorCode = "my-error-code", Message = "my-error-message" }) 
+                    ExpectedException = ODataExpectedExceptions.ODataErrorException(new ODataError { Code = "my-error-code", Message = "my-error-message" }) 
                 },
                 new
                 {
                     Json = "{{ \"{0}\": {{ \"code\": \"my-error-code\", \"innererror\": {{ \"message\": \"my-inner-error\" }} }} }}",
-                    ExpectedException = ODataExpectedExceptions.ODataErrorException(new ODataError { ErrorCode = "my-error-code", InnerError = new ODataInnerError { Message = "my-inner-error" }}) 
+                    ExpectedException = ODataExpectedExceptions.ODataErrorException(new ODataError { Code = "my-error-code", InnerError = new ODataInnerError { Message = "my-inner-error" }}) 
                 },
                 new
                 {
@@ -86,16 +86,16 @@ namespace Microsoft.Test.Taupo.OData.Reader.Tests.Json
                 new
                 {
                     Json = "{{ \"{0}\": {{ \"code\": \"my-error-code\", \"message\": \"my-error-message\", \"innererror\": {{ \"message\": \"my-inner-error\" }} }} }}",
-                    ExpectedException = ODataExpectedExceptions.ODataErrorException(new ODataError { ErrorCode = "my-error-code", Message = "my-error-message", InnerError = new ODataInnerError { Message = "my-inner-error" }}) 
+                    ExpectedException = ODataExpectedExceptions.ODataErrorException(new ODataError { Code = "my-error-code", Message = "my-error-message", InnerError = new ODataInnerError { Message = "my-inner-error" }}) 
                 },
             };
 
             this.CombinatorialEngineProvider.RunCombinations(
                 errorCases,
-                this.ReaderTestConfigurationProvider.JsonLightFormatConfigurations,
+                this.ReaderTestConfigurationProvider.JsonFormatConfigurations,
                 (errorCase, testConfiguration) =>
                 {
-                    string errorElementName = JsonLightConstants.ODataErrorPropertyName;
+                    string errorElementName = JsonConstants.ODataErrorPropertyName;
 
                     var testCase = new JsonPayloadErrorTestCase
                     {
@@ -108,7 +108,7 @@ namespace Microsoft.Test.Taupo.OData.Reader.Tests.Json
 
                     var descriptor = testCase.ToEdmPayloadReaderTestDescriptor(this.PayloadTestDescriptorSettings, this.PayloadExpectedResultSettings);
 
-                    // NOTE: payload generation is not supported for JSON Light yet
+                    // NOTE: payload generation is not supported for Json yet
                     var descriptors = testConfiguration.Format == ODataFormat.Json
                         ? new PayloadReaderTestDescriptor[] { descriptor }
                         : this.PayloadGenerator.GenerateReaderPayloads(descriptor);

@@ -181,7 +181,7 @@ namespace AstoriaUnitTests.Tests
             var q = ctx.CreateQuery<Customer>("Customers").Where(c => ((CustomerWithBirthday)c) is CustomerWithBirthday);
             string uri = ((DataServiceRequest)q).RequestUri.OriginalString;
             // check that we do not escape type strings:
-            TestUtil.AssertContains(uri, "$filter=isof(cast('%:/?#[]@=$&;()*+,'\" !'), '%:/?#[]@=$&;()*+,'\" !')");
+            TestUtil.AssertContains(uri, "$filter=isof(cast(%:/?#[]@=$&;()*+,'\" !), '%:/?#[]@=$&;()*+,'\" !')");
         }
 
         public class TestEntity1
@@ -2028,9 +2028,9 @@ namespace AstoriaUnitTests.Tests
 
         [Ignore] // Remove Atom
         // [TestMethod]
-        public void ShouldThrowIfUsingJsonLightWithoutModel()
+        public void ShouldThrowIfUsingJsonWithoutModel()
         {
-            // InvalidOperationException if client user try to use jsonlight but doesn't provide IEdmModel and the model is used by odatalib
+            // InvalidOperationException if client user try to use Json but doesn't provide IEdmModel and the model is used by odatalib
             // Specifying $format in the url causes client to throw InvalidOperationException
             using (OpenWebDataServiceHelper.MaxProtocolVersion.Restore())
             using (TestWebRequest request = TestWebRequest.CreateForInProcessWcf())

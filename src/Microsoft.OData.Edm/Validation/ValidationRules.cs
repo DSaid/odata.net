@@ -299,18 +299,18 @@ namespace Microsoft.OData.Edm.Validation
                         return;
                     }
 
-                    IEdmEntityType entityType = navigationSource.EntityType();
+                    IEdmEntityType entityType = navigationSource?.EntityType;
 
                     if (entityType == null)
                     {
                         return;
                     }
 
-                    if ((navigationSource.EntityType().Key() == null || !navigationSource.EntityType().Key().Any()) && !context.IsBad(navigationSource.EntityType()))
+                    if ((entityType.Key() == null || !entityType.Key().Any()) && !context.IsBad(entityType))
                     {
                         string errorMessage = Strings.EdmModel_Validator_Semantic_NavigationSourceTypeHasNoKeys(
                             navigationSource.Name,
-                            navigationSource.EntityType().Name);
+                            entityType.Name);
 
                         context.AddError(
                             navigationSource.Location(),
@@ -326,7 +326,7 @@ namespace Microsoft.OData.Edm.Validation
             new ValidationRule<IEdmNavigationSource>(
                 (context, navigationSource) =>
                 {
-                    IEdmEntityType entityType = navigationSource.EntityType();
+                    IEdmEntityType entityType = navigationSource?.EntityType;
 
                     if (entityType == null)
                     {
@@ -355,7 +355,7 @@ namespace Microsoft.OData.Edm.Validation
             new ValidationRule<IEdmNavigationSource>(
                 (context, navigationSource) =>
                 {
-                    IEdmEntityType entityType = navigationSource.EntityType();
+                    IEdmEntityType entityType = navigationSource?.EntityType;
                     if (entityType != null && !context.IsBad(entityType))
                     {
                         CheckForUnreacheableTypeError(context, entityType, navigationSource.Location());
@@ -397,7 +397,8 @@ namespace Microsoft.OData.Edm.Validation
                             continue;
                         }
 
-                        if (!(mapping.Target.EntityType().IsOrInheritsFrom(mapping.NavigationProperty.ToEntityType()) || mapping.NavigationProperty.ToEntityType().IsOrInheritsFrom(mapping.Target.EntityType())) && !context.IsBad(mapping.Target))
+                        IEdmEntityType navigationPropertyEntityType = mapping.NavigationProperty.ToEntityType();
+                        if (!(mapping.Target.EntityType.IsOrInheritsFrom(navigationPropertyEntityType) || navigationPropertyEntityType.IsOrInheritsFrom(mapping.Target.EntityType)) && !context.IsBad(mapping.Target))
                         {
                             context.AddError(
                                 navigationSource.Location(),
@@ -925,39 +926,29 @@ namespace Microsoft.OData.Edm.Validation
                 });
 
         /// <summary>
-        /// Validates that a key is not defined if there is already a key in the base type.
+        /// Validates that a key is not more than once in a type hierarchy
         /// </summary>
-        public static readonly ValidationRule<IEdmEntityType> EntityTypeInvalidKeyKeyDefinedInBaseClass =
+        public static readonly ValidationRule<IEdmEntityType> EntityTypeInvalidKeyKeyDefinedInAncestor =
             new ValidationRule<IEdmEntityType>(
                 (context, entityType) =>
                 {
-                    if (entityType.BaseType != null &&
-                        entityType.DeclaredKey != null &&
-                        entityType.BaseType.TypeKind == EdmTypeKind.Entity &&
-                        entityType.BaseEntityType().DeclaredKey != null)
+                    bool foundKey = entityType.DeclaredKey != null;
+                    IEdmEntityType baseType = entityType;
+                    while ((baseType = baseType.BaseEntityType()) != null)
                     {
-                        context.AddError(
-                        entityType.Location(),
-                        EdmErrorCode.InvalidKey,
-                        Strings.EdmModel_Validator_Semantic_InvalidKeyKeyDefinedInBaseClass(entityType.Name, entityType.BaseEntityType().Name));
-                    }
-                });
+                        if (baseType.DeclaredKey != null)
+                        {
+                            if(foundKey)
+                            {
+                                context.AddError(
+                                entityType.Location(),
+                                EdmErrorCode.InvalidKey,
+                                Strings.EdmModel_Validator_Semantic_InvalidKeyKeyDefinedInBaseClass(entityType.Name, baseType.Name));
+                                break;
+                            }
 
-        /// <summary>
-        /// Validates that the entity type has a key.
-        /// </summary>
-        public static readonly ValidationRule<IEdmEntityType> EntityTypeKeyMissingOnEntityType =
-            new ValidationRule<IEdmEntityType>(
-                (context, entityType) =>
-                {
-                    // Abstract entity type can have no key.
-                    var keys = entityType.Key();
-                    if ((keys == null || !keys.Any()) && entityType.BaseType == null && !entityType.IsAbstract)
-                    {
-                        context.AddError(
-                        entityType.Location(),
-                        EdmErrorCode.KeyMissingOnEntityType,
-                        Strings.EdmModel_Validator_Semantic_KeyMissingOnEntityType(entityType.Name));
+                            foundKey = true;
+                        }
                     }
                 });
 
@@ -1155,6 +1146,37 @@ namespace Microsoft.OData.Edm.Validation
                         && !context.IsBad(validatedType))
                     {
                         context.AddError(property.Location(), EdmErrorCode.InvalidPropertyType, Strings.EdmModel_Validator_Semantic_InvalidPropertyType(property.Type.TypeKind().ToString()));
+                    }
+                });
+
+        // Add this to rule set as a breaking change for a future release.
+        /// <summary>
+        /// Validates that if a complex-typed property has a type or base type that is the same as
+        /// the complex type, then the complex type is nullable.
+        /// </summary>
+        public static readonly ValidationRule<IEdmStructuralProperty> RecursiveComplexTypedPropertyMustBeOptional =
+            new ValidationRule<IEdmStructuralProperty>(
+                (context, property) =>
+                {
+                    IEdmTypeReference currentPropTypeRef = property.Type;
+                    IEdmType currentPropType = currentPropTypeRef.Definition;
+                    IEdmStructuredType declaringType = property.DeclaringType;
+
+                    if (!currentPropTypeRef.IsNullable)
+                    {
+                        while (currentPropType != null && currentPropType != declaringType)
+                        {
+                            IEdmStructuredType baseType = ((IEdmStructuredType)currentPropType).BaseType;
+                            currentPropType = baseType;
+                        }
+
+                        if (currentPropType == declaringType)
+                        {
+                            context.AddError(
+                                property.Location(),
+                                EdmErrorCode.RecursiveComplexTypedPropertyMustBeOptional,
+                                Strings.EdmModel_Validator_Semantic_RecursiveComplexTypedPropertyMustBeOptional(property.Name));
+                        }
                     }
                 });
 
@@ -1546,7 +1568,7 @@ namespace Microsoft.OData.Edm.Validation
                               var principalType = principalProperties.ElementAtOrDefault(i).Type.Definition;
                               if (!(dependentType is BadType) && !(principalType is BadType) && !dependentType.IsEquivalentTo(principalType))
                               {
-                                  string errorMessage = Strings.EdmModel_Validator_Semantic_TypeMismatchRelationshipConstraint(navigationProperty.DependentProperties().ToList()[i].Name, navigationProperty.DeclaringEntityType().FullName(), principalProperties.ToList()[i].Name, principalEntityType.Name, "Fred");
+                                  string errorMessage = Strings.EdmModel_Validator_Semantic_TypeMismatchRelationshipConstraint(navigationProperty.DependentProperties().ToList()[i].Name, navigationProperty.DeclaringEntityType().FullName(), principalProperties.ToList()[i].Name, principalEntityType.Name);
 
                                   context.AddError(navigationProperty.Location(), EdmErrorCode.TypeMismatchRelationshipConstraint, errorMessage);
                               }
@@ -1684,7 +1706,7 @@ namespace Microsoft.OData.Edm.Validation
                             IEnumerable<EdmError> errors;
                             if (operationImport.TryGetStaticEntitySet(context.Model, out entitySet))
                             {
-                                IEdmEntityType entitySetElementType = entitySet.EntityType();
+                                IEdmEntityType entitySetElementType = entitySet.EntityType;
                                 if (!returnedEntityType.IsOrInheritsFrom(entitySetElementType) && !context.IsBad(returnedEntityType) && !context.IsBad(entitySet) && !context.IsBad(entitySetElementType))
                                 {
                                     string errorMessage = Strings.EdmModel_Validator_Semantic_OperationImportEntityTypeDoesNotMatchEntitySet(
@@ -2737,11 +2759,13 @@ namespace Microsoft.OData.Edm.Validation
         private static bool TryResolveNavigationPropertyBindingPath(IEdmModel model, IEdmNavigationSource navigationSource, IEdmNavigationPropertyBinding binding)
         {
             var pathSegments = binding.Path.PathSegments.ToArray();
-            var definingType = navigationSource.EntityType() as IEdmStructuredType;
-            for (int index = 0; index < pathSegments.Length - 1; index++)
+            IEdmNavigationProperty lastNavProp = null;
+            var definingType = navigationSource?.EntityType as IEdmStructuredType;
+
+            for (int index = 0; index < pathSegments.Length; index++)
             {
                 string segment = pathSegments[index];
-                if (segment.IndexOf('.') < 0)
+                if (segment.IndexOf('.', StringComparison.Ordinal) < 0)
                 {
                     var property = definingType.FindProperty(segment);
                     if (property == null)
@@ -2750,9 +2774,14 @@ namespace Microsoft.OData.Edm.Validation
                     }
 
                     var navProperty = property as IEdmNavigationProperty;
-                    if (navProperty != null && !navProperty.ContainsTarget)
+                    if (navProperty != null)
                     {
-                        return false;
+                        if (lastNavProp != null && !lastNavProp.ContainsTarget)
+                        {
+                            return false;
+                        }
+
+                        lastNavProp = navProperty;
                     }
 
                     definingType = property.Type.Definition.AsElementType() as IEdmStructuredType;
@@ -2773,8 +2802,7 @@ namespace Microsoft.OData.Edm.Validation
                 }
             }
 
-            var navigationProperty = definingType.FindProperty(pathSegments.Last()) as IEdmNavigationProperty;
-            return navigationProperty != null;
+            return lastNavProp != null;
         }
 
         private static bool HasPathTypeProperty(IEdmStructuredType structuredType, IList<IEdmStructuredType> visited)
@@ -2838,7 +2866,7 @@ namespace Microsoft.OData.Edm.Validation
                     return 0;
                 }
 
-                return fullName.GetHashCode();
+                return fullName.GetHashCode(StringComparison.Ordinal);
             }
         }
     }

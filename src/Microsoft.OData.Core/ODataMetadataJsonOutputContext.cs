@@ -4,7 +4,6 @@
 // </copyright>
 //---------------------------------------------------------------------
 
-#if NETSTANDARD2_0
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -30,7 +29,7 @@ namespace Microsoft.OData
         private Utf8JsonWriter jsonWriter;
 
         /// <summary>The asynchronous output stream if we're writing asynchronously.</summary>
-        private AsyncBufferedStream asynchronousOutputStream;
+        private BufferedStream asynchronousOutputStream;
 
         /// <summary>
         /// Constructor.
@@ -55,7 +54,7 @@ namespace Microsoft.OData
                 }
                 else
                 {
-                    this.asynchronousOutputStream = new AsyncBufferedStream(this.messageOutputStream);
+                    this.asynchronousOutputStream = new BufferedStream(this.messageOutputStream, ODataConstants.DefaultOutputBufferSize);
                     outputStream = this.asynchronousOutputStream;
                 }
 
@@ -89,16 +88,12 @@ namespace Microsoft.OData
         /// </summary>
         /// <returns>A task representing the asynchronous operation of writing the metadata document.</returns>
         /// <remarks>It is the responsibility of this method to flush the output before the task finishes.</remarks>
-        internal override Task WriteMetadataDocumentAsync()
+        internal override async Task WriteMetadataDocumentAsync()
         {
             this.AssertAsynchronous();
 
-            return TaskUtils.GetTaskForSynchronousOperationReturningTask(
-                () =>
-                {
-                    this.WriteMetadataDocumentImplementation();
-                    return this.FlushAsync();
-                });
+            await this.WriteMetadataDocumentImplementationAsync().ConfigureAwait(false);
+            await this.FlushAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -176,21 +171,52 @@ namespace Microsoft.OData
         /// <param name="disposing">If 'true' this method is called from user code; if 'false' it is called by the runtime.</param>
         protected override void Dispose(bool disposing)
         {
+            if (disposing)
+            {
+                try
+                {
+                    if (this.jsonWriter != null)
+                    {
+                        if (this.asynchronousOutputStream != null)
+                        {
+                            DisposeOutputStreamAsync().Wait();
+                        }
+                        else
+                        {
+                            this.jsonWriter.Flush();
+                            this.jsonWriter.Dispose();
+                        }
+
+                        this.messageOutputStream.Dispose();
+                    }
+                }
+                finally
+                {
+                    this.messageOutputStream = null;
+                    this.asynchronousOutputStream = null;
+                    this.jsonWriter = null;
+                }
+            }
+
+            base.Dispose(disposing);
+        }
+
+        protected override async ValueTask DisposeAsyncCore()
+        {
             try
             {
                 if (this.jsonWriter != null)
                 {
+                    await this.jsonWriter.FlushAsync().ConfigureAwait(false);
+                    await this.jsonWriter.DisposeAsync().ConfigureAwait(false);
+
                     if (this.asynchronousOutputStream != null)
                     {
-                        DisposeOutputStreamAsync().Wait();
-                    }
-                    else
-                    {
-                        this.jsonWriter.Flush();
-                        this.jsonWriter.Dispose();
+                        await this.asynchronousOutputStream.FlushAsync().ConfigureAwait(false);
+                        await this.asynchronousOutputStream.DisposeAsync().ConfigureAwait(false);
                     }
 
-                    this.messageOutputStream.Dispose();
+                    await this.messageOutputStream.DisposeAsync().ConfigureAwait(false);
                 }
             }
             finally
@@ -200,7 +226,7 @@ namespace Microsoft.OData
                 this.jsonWriter = null;
             }
 
-            base.Dispose(disposing);
+            await base.DisposeAsyncCore().ConfigureAwait(false);
         }
 
         private void WriteMetadataDocumentImplementation()
@@ -226,14 +252,35 @@ namespace Microsoft.OData
             }
         }
 
+        private async Task WriteMetadataDocumentImplementationAsync()
+        {
+            var writerSettings = new CsdlJsonWriterSettings
+            {
+                IsIeee754Compatible = MessageWriterSettings.IsIeee754Compatible,
+            };
+
+            var (success, errors) = await CsdlWriter.TryWriteCsdlAsync(this.Model, this.jsonWriter, writerSettings).ConfigureAwait(false);
+            if (!success)
+            {
+                Debug.Assert(errors != null, "errors != null");
+
+                StringBuilder builder = new StringBuilder();
+                foreach (EdmError error in errors)
+                {
+                    builder.AppendLine(error.ToString());
+                }
+
+                throw new ODataException(Strings.ODataMetadataOutputContext_ErrorWritingMetadata(builder.ToString()));
+            }
+        }
+
         private async Task DisposeOutputStreamAsync()
         {
             await this.asynchronousOutputStream.FlushAsync().ConfigureAwait(false);
-            this.asynchronousOutputStream.Dispose();
 
             await this.jsonWriter.FlushAsync().ConfigureAwait(false);
             await this.jsonWriter.DisposeAsync().ConfigureAwait(false);
+            await this.asynchronousOutputStream.DisposeAsync().ConfigureAwait(false);
         }
     }
 }
-#endif

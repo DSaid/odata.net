@@ -131,11 +131,11 @@ namespace Microsoft.OData.Evaluation
                 case EdmNavigationSourceKind.Singleton:
                     uri = this.ComputeIdForSingleton();
                     break;
+                // Treat UnknownEntitySet as a containment
+                case EdmNavigationSourceKind.UnknownEntitySet:
                 case EdmNavigationSourceKind.ContainedEntitySet:
                     uri = this.ComputeIdForContainment();
                     break;
-                case EdmNavigationSourceKind.UnknownEntitySet:
-                    throw new ODataException(Strings.ODataMetadataBuilder_UnknownEntitySet(this.ResourceMetadataContext.TypeContext.NavigationSourceName));
                 default:
                     uri = this.ComputeId();
                     break;
@@ -152,7 +152,7 @@ namespace Microsoft.OData.Evaluation
         /// </returns>
         private Uri ComputeId()
         {
-            if (this.ResourceMetadataContext.KeyProperties.Any())
+            if (this.ResourceMetadataContext.TypeContext.NavigationSourceName != null && this.ResourceMetadataContext.KeyProperties.Any())
             {
                 Uri uri = this.UriBuilder.BuildBaseUri();
                 uri = this.UriBuilder.BuildEntitySetUri(uri, this.ResourceMetadataContext.TypeContext.NavigationSourceName);
@@ -177,14 +177,14 @@ namespace Microsoft.OData.Evaluation
             {
                 // Compute ID from context URL rather than from parent.
                 uri = this.UriBuilder.BuildBaseUri();
-                ODataUri odataUri = this.ODataUri ?? this.MetadataContext.ODataUri;
+                ODataPath odataPath = this.ODataUri?.Path ?? this.MetadataContext.ODataUri?.Path;
 
-                if (odataUri == null || odataUri.Path == null || odataUri.Path.Count == 0)
+                if (odataPath == null || odataPath.Count == 0)
                 {
                     throw new ODataException(Strings.ODataMetadataBuilder_MissingParentIdOrContextUrl);
                 }
 
-                uri = this.GetContainingEntitySetUri(uri, odataUri);
+                uri = this.GetContainingEntitySetUri(uri, odataPath);
             }
 
             // A path segment for the containment navigation property
@@ -270,9 +270,8 @@ namespace Microsoft.OData.Evaluation
         /// <param name="baseUri">The service root Uri.</param>
         /// <param name="odataUri">The request Uri.</param>
         /// <returns>The resource path.</returns>
-        private Uri GetContainingEntitySetUri(Uri baseUri, ODataUri odataUri)
+        private Uri GetContainingEntitySetUri(Uri baseUri, ODataPath path)
         {
-            ODataPath path = odataUri.Path;
             List<ODataPathSegment> segments = path.ToList();
             int lastIndex = segments.Count - 1;
             ODataPathSegment lastSegment = segments[lastIndex];

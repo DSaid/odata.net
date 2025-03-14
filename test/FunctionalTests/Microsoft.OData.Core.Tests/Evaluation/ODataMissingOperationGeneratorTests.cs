@@ -10,7 +10,7 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.OData.Edm;
 using Microsoft.OData.Evaluation;
-using Microsoft.OData.JsonLight;
+using Microsoft.OData.Json;
 using Xunit;
 
 namespace Microsoft.OData.Tests.Evaluation
@@ -181,7 +181,7 @@ namespace Microsoft.OData.Tests.Evaluation
             }
         }
 
-        public ODataResourceMetadataBuilder GetResourceMetadataBuilderForReader(IODataJsonLightReaderResourceState entryState, bool useKeyAsSegment, bool isDelta = false)
+        public ODataResourceMetadataBuilder GetResourceMetadataBuilderForReader(IODataJsonReaderResourceState entryState, bool useKeyAsSegment, bool isDelta = false)
         {
             if (this.GetEntityMetadataBuilderFunc != null)
             {
@@ -211,7 +211,7 @@ namespace Microsoft.OData.Tests.Evaluation
             throw new NotImplementedException();
         }
 
-        public ODataUri ODataUri { get; set; }
+        public ODataUriSlim? ODataUri { get; set; }
     }
 
     public class AllPropertiesComparer<T> : IEqualityComparer<T>

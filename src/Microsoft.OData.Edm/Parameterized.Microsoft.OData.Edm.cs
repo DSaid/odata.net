@@ -187,6 +187,47 @@ namespace Microsoft.OData.Edm {
         }
 
         /// <summary>
+        /// A string like "First segment must be IEdmEntityContainer."
+        /// </summary>
+        internal static string TargetPath_FirstSegmentMustBeIEdmEntityContainer
+        {
+            get
+            {
+                return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.TargetPath_FirstSegmentMustBeIEdmEntityContainer);
+            }
+        }
+
+        /// <summary>
+        /// A string like "Second segment must be IEdmEntityContainerElement."
+        /// </summary>
+        internal static string TargetPath_SecondSegmentMustBeIEdmEntityContainerElement
+        {
+            get
+            {
+                return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.TargetPath_SecondSegmentMustBeIEdmEntityContainerElement);
+            }
+        }
+
+        /// <summary>
+        /// A string like "Target path segments must not contain a null segment."
+        /// </summary>
+        internal static string TargetPath_SegmentsMustNotContainNullSegment
+        {
+            get
+            {
+                return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.TargetPath_SegmentsMustNotContainNullSegment);
+            }
+        }
+
+        /// <summary>
+        /// A string like "Encountered invalid type cast. '{0}' is not assignable from '{1}'."
+        /// </summary>
+        internal static string TypeCast_HierarchyNotFollowed(object p0, object p1)
+        {
+            return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.TypeCast_HierarchyNotFollowed, p0, p1);
+        }
+
+        /// <summary>
         /// A string like "Type '{0}' must have a single type annotation with term type '{1}'."
         /// </summary>
         internal static string Edm_Evaluator_NoTermTypeAnnotationOnType(object p0, object p1)
@@ -471,11 +512,11 @@ namespace Microsoft.OData.Edm {
         }
 
         /// <summary>
-        /// A string like "The types of all properties in the dependent role of a referential constraint must be the same as the corresponding property types in the principal role. The type of property '{0}' on entity '{1}' does not match the type of property '{2}' on entity '{3}' in the referential constraint '{4}'."
+        /// A string like "The types of all properties in the dependent role of a referential constraint must be the same as the corresponding property types in the principal role. The type of property '{0}' on entity '{1}' does not match the type of property '{2}' on entity '{3}' in the referential constraint."
         /// </summary>
-        internal static string EdmModel_Validator_Semantic_TypeMismatchRelationshipConstraint(object p0, object p1, object p2, object p3, object p4)
+        internal static string EdmModel_Validator_Semantic_TypeMismatchRelationshipConstraint(object p0, object p1, object p2, object p3)
         {
-            return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.EdmModel_Validator_Semantic_TypeMismatchRelationshipConstraint, p0, p1, p2, p3, p4);
+            return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.EdmModel_Validator_Semantic_TypeMismatchRelationshipConstraint, p0, p1, p2, p3);
         }
 
         /// <summary>
@@ -831,6 +872,14 @@ namespace Microsoft.OData.Edm {
         internal static string EdmModel_Validator_Semantic_NavigationPropertyWithRecursiveContainmentTargetMustBeOptional(object p0)
         {
             return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.EdmModel_Validator_Semantic_NavigationPropertyWithRecursiveContainmentTargetMustBeOptional, p0);
+        }
+
+        /// <summary>
+        /// A string like "The nullability of the property '{0}' is invalid. If a complex typed property is of the same type (or base type) as its declaring type, then the property represents a recursive containment and the given property must be optional."
+        /// </summary>
+        internal static string EdmModel_Validator_Semantic_RecursiveComplexTypedPropertyMustBeOptional(object p0)
+        {
+            return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.EdmModel_Validator_Semantic_RecursiveComplexTypedPropertyMustBeOptional, p0);
         }
 
         /// <summary>
@@ -1814,13 +1863,13 @@ namespace Microsoft.OData.Edm {
         }
 
         /// <summary>
-        /// A string like "The IsType expression must contain 1 operand."
+        /// A string like "The IsOf expression must contain 1 operand."
         /// </summary>
-        internal static string CsdlParser_InvalidIsTypeExpressionIncorrectNumberOfOperands
+        internal static string CsdlParser_InvalidIsOfExpressionIncorrectNumberOfOperands
         {
             get
             {
-                return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.CsdlParser_InvalidIsTypeExpressionIncorrectNumberOfOperands);
+                return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.CsdlParser_InvalidIsOfExpressionIncorrectNumberOfOperands);
             }
         }
 
@@ -2627,6 +2676,14 @@ namespace Microsoft.OData.Edm {
         internal static string EdmVocabularyAnnotations_TermTypeNotSupported(object p0)
         {
             return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.EdmVocabularyAnnotations_TermTypeNotSupported, p0);
+        }
+
+        /// <summary>
+        /// A string like "Invalid to set inline location for a path target '{0}'."
+        /// </summary>
+        internal static string EdmVocabularyAnnotations_InvalidLocationForTargetPathAnnotation(object p0)
+        {
+            return Microsoft.OData.Edm.EdmRes.GetString(Microsoft.OData.Edm.EdmRes.EdmVocabularyAnnotations_InvalidLocationForTargetPathAnnotation, p0);
         }
 
     }

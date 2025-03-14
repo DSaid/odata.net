@@ -617,57 +617,28 @@ namespace Microsoft.OData.Edm.Csdl
         {
             Debug.Assert(this.reader.LocalName == CsdlConstants.Element_Reference);
 
-            XmlReaderSettings settings = new XmlReaderSettings();
-            IXmlLineInfo lineInfo = this.reader as IXmlLineInfo;
-            if (lineInfo != null && lineInfo.HasLineInfo())
+            string artifactPath = this.source ?? this.reader.BaseURI;
+            CsdlReferenceParser referenceParser = new CsdlReferenceParser(artifactPath, this.reader);
+            referenceParser.ParseDocumentElement();
+
+            if (referenceParser.HasErrors)
             {
-                settings.LineNumberOffset = lineInfo.LineNumber - 1;
-                settings.LinePositionOffset = lineInfo.LinePosition - 2;
+                foreach (EdmError error in referenceParser.Errors)
+                {
+                    this.errors.Add(error);
+                }
             }
 
-            using (StringReader sr = new StringReader(this.reader.ReadOuterXml()))
+            if (referenceParser.Result != null)
             {
-                using (XmlReader xr = XmlReader.Create(sr, settings))
-                {
-                    string artifactPath = this.source ?? this.reader.BaseURI;
-                    CsdlReferenceParser referenceParser = new CsdlReferenceParser(artifactPath, xr);
-                    referenceParser.ParseDocumentElement();
-
-                    if (referenceParser.HasErrors)
-                    {
-                        foreach (var error in referenceParser.Errors)
-                        {
-                            this.errors.Add(error);
-                        }
-                    }
-
-                    if (referenceParser.Result != null)
-                    {
-                        this.references.Add(referenceParser.Result.Value);
-                    }
-                }
+                this.references.Add(referenceParser.Result.Value);
             }
         }
 
         private void ParseSchemaElement()
         {
             Debug.Assert(this.reader.LocalName == CsdlConstants.Element_Schema, "Must call ParseCsdlSchemaElement on Schema Element");
-
-            XmlReaderSettings settings = new XmlReaderSettings();
-            IXmlLineInfo lineInfo = this.reader as IXmlLineInfo;
-            if (lineInfo != null && lineInfo.HasLineInfo())
-            {
-                settings.LineNumberOffset = lineInfo.LineNumber - 1;
-                settings.LinePositionOffset = lineInfo.LinePosition - 2;
-            }
-
-            using (StringReader sr = new StringReader(this.reader.ReadOuterXml()))
-            {
-                using (XmlReader xr = XmlReader.Create(sr, settings))
-                {
-                    this.csdlParser.AddReader(xr, this.source);
-                }
-            }
+            this.csdlParser.AddReader(this.reader, this.source);
         }
 
         private void RaiseEmptyFile()

@@ -12,7 +12,7 @@ namespace Microsoft.OData.UriParser
     /// <summary>
     /// A segment representing an EntitySet in a path.
     /// </summary>
-    public sealed class EntitySetSegment : ODataPathSegment
+    public sealed class EntitySetSegment : ODataPathSegment, INavigationSourceSegment
     {
         /// <summary>
         /// The entity set represented by this segment.
@@ -36,10 +36,11 @@ namespace Microsoft.OData.UriParser
             this.entitySet = entitySet;
 
             // creating a new collection type here because the type in the entity set is just the item type, there is no user-provided collection type.
-            this.type = new EdmCollectionType(new EdmEntityTypeReference(this.entitySet.EntityType(), false));
+            this.type = new EdmCollectionType(new EdmEntityTypeReference(this.entitySet.EntityType, false));
 
+            this.Identifier = entitySet.Name;
             this.TargetEdmNavigationSource = entitySet;
-            this.TargetEdmType = entitySet.EntityType();
+            this.TargetEdmType = entitySet.EntityType;
             this.TargetKind = RequestTargetKind.Resource;
             this.SingleResult = false;
         }
@@ -59,6 +60,14 @@ namespace Microsoft.OData.UriParser
         public override IEdmType EdmType
         {
             get { return this.type; }
+        }
+
+        /// <summary>
+        /// The navigation source targeted by this segment.
+        /// </summary>
+        public IEdmNavigationSource NavigationSource
+        {
+            get { return this.entitySet; }
         }
 
         /// <summary>

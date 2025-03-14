@@ -22,6 +22,7 @@ namespace Microsoft.OData.Client
     using System.Linq;
     using System.Linq.Expressions;
     using System.Net;
+    using System.Net.Http;
     using System.Reflection;
     using System.Threading;
     using System.Threading.Tasks;
@@ -48,22 +49,6 @@ namespace Microsoft.OData.Client
         /// Throw on undeclared property.
         /// </summary>
         ThrowException = 1,
-    }
-
-    /// <summary>
-    /// Describes the method that the client will use in making Http requests to the server. 
-    /// </summary>
-    public enum HttpRequestTransportMode
-    {
-        /// <summary>
-        /// Uses HttpWebRequest
-        /// </summary>
-        HttpWebRequest = 0,
-
-        /// <summary>
-        /// Uses HttpClient.
-        /// </summary>
-        HttpClient = 1,
     }
 
     /// <summary>
@@ -123,9 +108,6 @@ namespace Microsoft.OData.Client
         /// <summary>The resolver for baseUris</summary>
         private UriResolver baseUriResolver;
 
-        /// <summary>Authentication interface for retrieving credentials for Web client authentication.</summary>
-        private System.Net.ICredentials credentials;
-
         /// <summary>resolve type from a typename</summary>
         private Func<Type, string> resolveName;
 
@@ -155,9 +137,6 @@ namespace Microsoft.OData.Client
 
         /// <summary>Options that can overwrite ignoreMissingProperties.</summary>
         private UndeclaredPropertyBehavior undeclaredPropertyBehavior = UndeclaredPropertyBehavior.Support;
-
-        /// <summary>The mode to use in making Http requests. Uses HttpWebRequest as the default. </summary>
-        private HttpRequestTransportMode httpRequestTransportMode = HttpRequestTransportMode.HttpWebRequest;
 
         /// <summary>The URL key delimiter to use.</summary>
         private DataServiceUrlKeyDelimiter urlKeyDelimiter;
@@ -287,7 +266,7 @@ namespace Microsoft.OData.Client
             this.httpStack = HttpStack.Auto;
             this.UsingDataServiceCollection = false;
             this.UsePostTunneling = false;
-            this.keyComparisonGeneratesFilterQuery = false;
+            this.keyComparisonGeneratesFilterQuery = true;
             this.deleteLinkUriOption = DeleteLinkUriOption.IdQueryParam;
         }
 
@@ -436,14 +415,6 @@ namespace Microsoft.OData.Client
             }
         }
 
-        /// <summary>Gets or sets the authentication information that is used by each query created by using the <see cref="Microsoft.OData.Client.DataServiceContext" /> object.</summary>
-        /// <returns>The base authentication interface for retrieving credentials for Web client authentication.</returns>
-        public virtual System.Net.ICredentials Credentials
-        {
-            get { return this.credentials; }
-            set { this.credentials = value; }
-        }
-
         /// <summary>Gets or sets the option for sending entity parameters to service.</summary>
         /// <returns>One of the members of the <see cref="Microsoft.OData.Client.EntityParameterSendOption" /> enumeration.</returns>
         public virtual EntityParameterSendOption EntityParameterSendOption
@@ -475,6 +446,15 @@ namespace Microsoft.OData.Client
             internal set { this.applyingChanges = value; }
         }
 
+
+        /// <summary>
+        /// Gets or sets whether query projection will handle null propagation automatically. If set to true null propagation checks can be omitted from queries.
+        ///</summary>
+        /// <remarks>
+        /// Default is false.
+        /// </remarks>
+        public virtual bool AutoNullPropagation { get; set; }
+
         /// <summary>Gets or sets a function to override the default type resolution strategy used by the client library when you send entities to a data service.</summary>
         /// <returns>Returns a string that contains the name of the <see cref="Microsoft.OData.Client.DataServiceContext" />.</returns>
         /// <remarks>
@@ -484,7 +464,7 @@ namespace Microsoft.OData.Client
         /// This enables the client to perform custom mapping between the type name
         /// provided in a response from the server and a type on the client.
         /// This method enables one to override the entity name that is serialized
-        /// to the target representation (ATOM,JSON, etc) for the specified type.
+        /// to the target representation (JSON) for the specified type.
         /// </remarks>
         public virtual Func<Type, string> ResolveName
         {
@@ -518,6 +498,7 @@ namespace Microsoft.OData.Client
         /// The value may be changed between requests to a data service and the new value
         /// will be picked up by the next data service request.
         /// </remarks>
+        [Obsolete("The Timeout property is obsolete. Use IHttpClientFactory to configure the timeout.")]
         public virtual int Timeout
         {
             get
@@ -686,8 +667,10 @@ namespace Microsoft.OData.Client
         public virtual bool EnableWritingODataAnnotationWithoutPrefix { get; set; }
 
         /// <summary>
-        /// Indicates whether a Where clause that just compares the key property generates a $filter query option.
+        /// When true, a Where clause that has only the key property in the predicate generates a $filter query option, otherwise a key segment is generated.
+        /// The default value is true.
         /// </summary>
+        [Obsolete("This property will be removed in a future major release.")]
         public virtual bool KeyComparisonGeneratesFilterQuery
         {
             get { return this.keyComparisonGeneratesFilterQuery; }
@@ -709,26 +692,19 @@ namespace Microsoft.OData.Client
             set { this.undeclaredPropertyBehavior = value; }
         }
 
-        /// <summary>Gets or sets the HttpRequest mode to use in making Http Requests.</summary>
-        /// <returns>HttpRequestTransportMode.</returns>
-        public HttpRequestTransportMode HttpRequestTransportMode
-        {
-            get { return this.httpRequestTransportMode; }
-            set { this.httpRequestTransportMode = value; }
-        }
+        /// <summary>
+        /// Gets or sets the <see cref="IHttpClientFactory"/> that provides the <see cref="HttpClient"/> to use when making a request.
+        /// If <see cref="HttpClientFactory"/> is null, a new <see cref="HttpClient"/> instance will be created for each request.
+        /// </summary>
+        public IHttpClientFactory HttpClientFactory { get; set; }
 
-        /// <summary>Gets or sets the HttpRequest mode to use in making Http Requests.</summary>
-        /// <returns>TransportModeFactory.</returns>
+        /// <summary>Gets or sets the <see cref="IDataServiceRequestMessageFactory"/> used to build request messages.</summary>
+        /// <returns>RequestMessageFactory</returns>
         internal IDataServiceRequestMessageFactory RequestMessageFactory
         {
             get { return this.requestMessageFactory; }
             set { this.requestMessageFactory = value; }
         }
-
-        /// <summary>
-        /// Gets or sets a System.Boolean value that controls whether default credentials are sent with requests.
-        /// </summary>
-        internal bool UseDefaultCredentials { get; set; }
 
         /// <summary>Gets a value that indicates the type of HTTP implementation to use when accessing the data service in Silverlight.</summary>
         /// <returns>A <see cref="Microsoft.OData.Client.HttpStack" /> value that indicates the HTTP implementation to use when accessing the data service.</returns>
@@ -2250,9 +2226,147 @@ namespace Microsoft.OData.Client
 
         #endregion
 
+        #region BulkUpdate, BulkUpdateAsync, BeginBulkUpdate, EndBulkUpdate
+        
+        /// <summary>
+        /// Processes bulk update requests
+        /// </summary>
+        /// <typeparam name="T">The type of top-level objects to be deep updated.</typeparam>
+        /// <param name="objects">The top-level objects of the type to be deep updated.</param>
+        public virtual DataServiceResponse BulkUpdate<T>(params T[] objects)
+        {
+            if (objects == null || objects.Length == 0)
+            {
+                throw Error.Argument(Strings.Util_EmptyArray, nameof(objects));
+            }
+
+            BulkUpdateSaveResult result = new BulkUpdateSaveResult(this, Util.BulkUpdateMethodName, SaveChangesOptions.BulkUpdate, callback: null, state: null);
+            result.BulkUpdateRequest(objects);
+
+            return result.EndRequest();
+        }
+
+        /// <summary>
+        /// Asynchronously processes a bulk update request. 
+        /// </summary>
+        /// <typeparam name="T">The type of top-level objects to be deep updated.</typeparam>
+        /// <param name="objects">The top-level objects of the type to be deep updated. </param>
+        /// <returns>A task representing the <see cref="DataServiceResponse"/> that holds the result of a bulk operation. </returns>
+        public virtual Task<DataServiceResponse> BulkUpdateAsync<T>(params T[] objects)
+        {
+            return this.BulkUpdateAsync(CancellationToken.None, objects);
+        }
+
+        /// <summary>Asynchronously processes a bulk update request</summary>
+        /// <typeparam name="T">The type of top-level objects to be deep updated.</typeparam>
+        /// <param name="objects">The top-level objects of the type to be deep updated.</param>
+        /// <returns>A task representing the <see cref="DataServiceResponse"/> that holds the result of a bulk operation.</returns>
+        public virtual Task<DataServiceResponse> BulkUpdateAsync<T>(CancellationToken cancellationToken, params T[] objects)
+        {
+            return FromAsync((objectsArg, callback, state) => BeginBulkUpdate(callback, state, objectsArg), EndBulkUpdate, objects, cancellationToken);
+        }
+
+        /// <summary>Asynchronously submits top-level objects to be deep-updated to the data service.</summary>
+        /// <param name="callback">The delegate that is called when a response to the bulk update request is received.</param>
+        /// <param name="state">User-defined state object that is used to pass context data to the callback method.</param>
+        /// <returns>An<see cref="System.IAsyncResult" /> object that is used to track the status of the asynchronous operation. </returns>
+        internal virtual IAsyncResult BeginBulkUpdate<T>(AsyncCallback callback, object state, params T[] objects)
+        {
+            if (objects == null || objects.Length == 0)
+            {
+                throw Error.Argument(Strings.Util_EmptyArray, nameof(objects));
+            }
+
+            BulkUpdateSaveResult result = new BulkUpdateSaveResult(this, Util.BulkUpdateMethodName, SaveChangesOptions.BulkUpdate, callback, state);
+            result.BeginBulkUpdateRequest(objects);
+
+            return result;
+        }
+
+        /// <summary>Called to complete the <see cref="BeginBulkUpdate{T}(AsyncCallback, object, T[])"/>.</summary>
+        /// <param name="asyncResult">An <see cref="System.IAsyncResult" /> that represents the status of the asynchronous operation.</param>
+        /// <returns>The DataServiceResponse object that holds the result of the bulk update operation.</returns>
+        internal virtual DataServiceResponse EndBulkUpdate(IAsyncResult asyncResult)
+        {
+            BulkUpdateSaveResult result = BaseAsyncResult.EndExecute<BulkUpdateSaveResult>(this, Util.BulkUpdateMethodName, asyncResult);
+            return result.EndRequest();
+        }
+
+        #endregion
+
+        #region DeepInsert, DeepInsertAsync, BeginDeepInsert, EndDeepInsert
+
+        /// <summary>
+        /// Processes deep insert requests. Creates a resource and its related resources or creates a resource and links it to its related existing resources in a single request.
+        /// </summary>
+        /// <typeparam name="T">The type of top-level object to be deep inserted.</typeparam>
+        /// <param name="resource">The top-level object of the type to be deep inserted.</param>
+        public virtual DataServiceResponse DeepInsert<T>(T resource)
+        {
+            if (resource == null)
+            {
+                throw Error.ArgumentNull(nameof(resource));
+            }
+
+            DeepInsertSaveResult result = new DeepInsertSaveResult(this, Util.DeepInsertMethodName, SaveChangesOptions.DeepInsert, callback: null, state: null);
+            result.DeepInsertRequest(resource);
+
+            return result.EndRequest();
+        }
+
+        /// <summary>
+        /// Asynchronously processes a deep insert request.
+        /// </summary>
+        /// <typeparam name="T">The type of top-level object to be deep inserted.</typeparam>
+        /// <param name="resource">The top-level object of the type to be deep inserted.</param>
+        /// <returns>A task representing the <see cref="DataServiceResponse"/> that holds the result of the deep insert operation.</returns>
+        public virtual Task<DataServiceResponse> DeepInsertAsync<T>(T resource)
+        {
+            return this.DeepInsertAsync(resource, CancellationToken.None);
+        }
+
+        /// <summary>
+        /// Asynchronously processes a deep insert request.
+        /// </summary>
+        /// <typeparam name="T">The type of top-level object to be deep inserted.</typeparam>
+        /// <param name="resource">The top-level object of the type to be deep inserted.</param>
+        /// <returns>A task representing the <see cref="DataServiceResponse"/> that holds the result of the deep insert operation.</returns>
+        public virtual Task<DataServiceResponse> DeepInsertAsync<T>(T resource, CancellationToken cancellationToken)
+        {
+            return FromAsync((objectsArg, callback, state) => BeginDeepInsert(callback, state, objectsArg), EndDeepInsert, resource, cancellationToken);
+        }
+
+        /// <summary>Asynchronously submits top-level objects to be deep inserted to the data service.</summary>
+        /// <param name="callback">The delegate that is called when a response to the deep insert request is received.</param>
+        /// <param name="state">User-defined state object that is used to pass context data to the callback method.</param>
+        /// <returns>An<see cref="IAsyncResult" /> object that is used to track the status of the asynchronous operation.</returns>
+        public virtual IAsyncResult BeginDeepInsert<T>(AsyncCallback callback, object state, T resource)
+        {
+            if (resource == null)
+            {
+                throw Error.ArgumentNull(nameof(resource));
+            }
+
+            DeepInsertSaveResult result = new DeepInsertSaveResult(this, Util.DeepInsertMethodName, SaveChangesOptions.DeepInsert, callback, state);
+            result.BeginDeepInsertRequest(resource);
+
+            return result;
+        }
+
+        /// <summary>Called to complete the <see cref="BeginDeepInsert{T}(AsyncCallback, object, T)"/>.</summary>
+        /// <param name="asyncResult">An <see cref="IAsyncResult" /> that represents the status of the asynchronous operation.</param>
+        /// <returns>The DataServiceResponse object that holds the result of the deep insert operation.</returns>
+        public virtual DataServiceResponse EndDeepInsert(IAsyncResult asyncResult)
+        {
+            DeepInsertSaveResult result = BaseAsyncResult.EndExecute<DeepInsertSaveResult>(this, Util.DeepInsertMethodName, asyncResult);
+            return result.EndRequest();
+        }
+
+        #endregion
+
         #region Add, Attach, Delete, Detach, Update, TryGetEntity, TryGetUri
 
-        /// <summary>Adds the specified link to the set of objects the <see cref="Microsoft.OData.Client.DataServiceContext" /> is tracking.</summary>
+        /// <summary>Adds the specified link to the set of objects the <see cref="Microsoft.OData.Client.DataServiceContext" /> is tracking. The <paramref source="sourceProperty"/> MUST be a collection navigation property.</summary>
         /// <param name="source">The source object for the new link.</param>
         /// <param name="sourceProperty">The name of the navigation property on the source object that returns the related object.</param>
         /// <param name="target">The object related to the source object by the new link. </param>
@@ -2394,6 +2508,58 @@ namespace Microsoft.OData.Client
             }
         }
 
+        /// <summary>Adds the specified link to the set of objects the <see cref="Microsoft.OData.Client.DataServiceContext" /> is tracking. The <paramref source="sourceProperty"/> MUST be a single-value navigation property.</summary>
+        /// <param name="source">The source object for the new link.</param>
+        /// <param name="sourceProperty">The name of the navigation property on the source object that returns the related object.</param>
+        /// <param name="target">The object related to the source object by the new link.</param>
+        /// <exception cref="System.ArgumentNullException">When <paramref name="source" />, <paramref name="sourceProperty" /> or <paramref name="target" /> are null.</exception>
+        /// <exception cref="System.InvalidOperationException">When the specified link already exists.-or-When the objects supplied as <paramref name="source" /> or <paramref name="target" /> are in the <see cref="Microsoft.OData.Client.EntityStates.Detached" /> or <see cref="Microsoft.OData.Client.EntityStates.Deleted" /> state.-or-When <paramref name="sourceProperty" /> is not a navigation property that defines a reference to a single related object.</exception>
+        public virtual void SetRelatedObjectLink(object source, string sourceProperty, object target)
+        {
+            Util.CheckArgumentNull(source, nameof(source));
+            Util.CheckArgumentNullAndEmpty(sourceProperty, nameof(sourceProperty));
+            Util.CheckArgumentNull(target, nameof(target));
+
+            // Validate that the source is an entity and is already tracked by the context.
+            ValidateEntityType(source, this.Model);
+
+            EntityDescriptor sourceResource = this.entityTracker.GetEntityDescriptor(source);
+
+            // Check for deleted source entity
+            if (sourceResource.State == EntityStates.Deleted)
+            {
+                throw Error.InvalidOperation(Strings.Context_SetRelatedObjectLinkSourceDeleted);
+            }
+
+            // Validate that the property is valid and exists on the source
+            ClientTypeAnnotation sourceType = this.model.GetClientTypeAnnotation(this.model.GetOrCreateEdmType(source.GetType()));
+            Debug.Assert(sourceType.IsEntityType, "should be an entity type");
+
+            // will throw InvalidOperationException if property doesn't exist
+            ClientPropertyAnnotation property = sourceType.GetProperty(sourceProperty, UndeclaredPropertyBehavior.ThrowException);
+
+            if (property.IsKnownType || property.IsEntityCollection)
+            {
+                throw Error.InvalidOperation(Strings.Context_SetRelatedObjectLinkNonCollectionOnly);
+            }
+
+            // if (property.IsEntityCollection) then property.PropertyType is the collection elementType
+            // either way you can only have a relation ship between keyed objects
+            ClientTypeAnnotation sourcePropertyType = this.model.GetClientTypeAnnotation(this.model.GetOrCreateEdmType(property.EntityCollectionItemType ?? property.PropertyType));
+            Debug.Assert(sourcePropertyType.IsEntityType, "should be an entity type.");
+
+            if (!sourcePropertyType.ElementType.IsInstanceOfType(target))
+            {
+                // target is not of the correct type
+                throw Error.Argument(Strings.Context_RelationNotRefOrCollection, nameof(target));
+            }
+
+            LinkDescriptor descriptor = new LinkDescriptor(source, sourceProperty, target, this.model);
+            this.entityTracker.AddLink(descriptor);
+            descriptor.State = EntityStates.Added;
+            this.entityTracker.IncrementChange(descriptor);
+        }
+
         #endregion
 
         #region AddObject, AttachTo, DeleteObject, Detach, TryGetEntity, TryGetUri
@@ -2425,7 +2591,7 @@ namespace Microsoft.OData.Client
             this.EntityTracker.IncrementChange(resource);
         }
 
-        /// <summary>Adds a related object to the context and creates the link that defines the relationship between the two objects in a single request.</summary>
+        /// <summary>Adds a related object to the context and creates the link that defines the relationship between the two objects in a single request. The <paramref source="sourceProperty"/> MUST be a collection navigation property.</summary>
         /// <param name="source">The parent object that is being tracked by the context.</param>
         /// <param name="sourceProperty">The name of the navigation property that returns the related object based on an association between the two entities.</param>
         /// <param name="target">The related object that is being added.</param>
@@ -2464,6 +2630,68 @@ namespace Microsoft.OData.Client
             {
                 // target is not of the correct type
                 throw Error.Argument(Strings.Context_RelationNotRefOrCollection, "target");
+            }
+
+            var targetResource = new EntityDescriptor(this.model)
+            {
+                Entity = target,
+                State = EntityStates.Added,
+                DependsOnIds = new List<string> { sourceResource.ChangeOrder.ToString(CultureInfo.InvariantCulture) }
+            };
+
+            targetResource.SetParentForInsert(sourceResource, sourceProperty);
+
+            this.EntityTracker.AddEntityDescriptor(targetResource);
+
+            // Add the link in the added state.
+            LinkDescriptor end = targetResource.GetRelatedEnd();
+            end.State = EntityStates.Added;
+            this.entityTracker.AddLink(end);
+
+            this.entityTracker.IncrementChange(targetResource);
+        }
+
+        /// <summary>Adds a related object to the context and creates the link that defines the relationship between the two objects in a single request. The <paramref source="sourceProperty"/> MUST be a single-value navigation property.</summary>
+        /// <param name="source">The parent object that is being tracked by the context.</param>
+        /// <param name="sourceProperty">The name of the navigation property that returns the related object based on an association between the two entities.</param>
+        /// <param name="target">The related object that is being added.</param>
+        public virtual void SetRelatedObject(object source, string sourceProperty, object target)
+        {
+            Util.CheckArgumentNull(source, "source");
+            Util.CheckArgumentNullAndEmpty(sourceProperty, "sourceProperty");
+            Util.CheckArgumentNull(target, "target");
+
+            // Validate that the source is an entity and is already tracked by the context.
+            ValidateEntityType(source, this.Model);
+
+            EntityDescriptor sourceResource = this.entityTracker.GetEntityDescriptor(source);
+
+            // Check for deleted source entity
+            if (sourceResource.State == EntityStates.Deleted)
+            {
+                throw Error.InvalidOperation(Strings.Context_SetRelatedObjectSourceDeleted);
+            }
+
+            // Validate that the property is valid and exists on the source
+            ClientTypeAnnotation parentType = this.model.GetClientTypeAnnotation(this.model.GetOrCreateEdmType(source.GetType()));
+            ClientPropertyAnnotation property = parentType.GetProperty(sourceProperty, UndeclaredPropertyBehavior.ThrowException);
+
+            if (property.IsKnownType || property.IsEntityCollection)
+            {
+                throw Error.InvalidOperation(Strings.Context_SetRelatedObjectNonCollectionOnly);
+            }
+
+            // Validate that the target is an entity
+            ClientTypeAnnotation childType = this.model.GetClientTypeAnnotation(this.model.GetOrCreateEdmType(target.GetType()));
+            ValidateEntityType(target, this.Model);
+
+            // Validate that the property type matches with the target type
+            ClientTypeAnnotation propertyElementType = this.model.GetClientTypeAnnotation(this.model.GetOrCreateEdmType(property.PropertyType));
+
+            if (!propertyElementType.ElementType.IsAssignableFrom(childType.ElementType))
+            {
+                // target is not of the correct type
+                throw Error.Argument(Strings.Context_RelationNotRefOrCollection, nameof(target));
             }
 
             var targetResource = new EntityDescriptor(this.model)
@@ -3267,7 +3495,12 @@ namespace Microsoft.OData.Client
 
                 if (!this.resolveTypesCache.TryGetValue(typeName, out matchedType))
                 {
-                    if (ClientTypeUtil.TryResolveType(typeName, fullNamespace, languageDependentNamespace, out matchedType))
+                    if (ClientTypeUtil.TryResolveType(
+                        this.GetType().GetAssembly(),
+                        typeName,
+                        fullNamespace,
+                        languageDependentNamespace,
+                        out matchedType))
                     {
                         this.resolveTypesCache.TryAdd(typeName, matchedType);
 
@@ -3478,7 +3711,7 @@ namespace Microsoft.OData.Client
 
                 string contentType = buildingRequestEventArgs.HeaderCollection.GetHeader(ContentType);
 
-                if (!string.IsNullOrEmpty(contentType) && contentType.ToUpperInvariant().Contains(MimeIeee754CompatibleHeaderTrue.ToUpperInvariant()))
+                if (!string.IsNullOrEmpty(contentType) && contentType.ToUpperInvariant().Contains(MimeIeee754CompatibleHeaderTrue.ToUpperInvariant(), StringComparison.Ordinal))
                 {
                     this.IsIeee754Compatible = true;
                 }
@@ -3501,7 +3734,7 @@ namespace Microsoft.OData.Client
         /// <param name="options">options as specified by the user.</param>
         private void ValidateSaveChangesOptions(SaveChangesOptions options)
         {
-            const SaveChangesOptions All = SaveChangesOptions.ContinueOnError | SaveChangesOptions.BatchWithSingleChangeset | SaveChangesOptions.BatchWithIndependentOperations | SaveChangesOptions.ReplaceOnUpdate | SaveChangesOptions.PostOnlySetProperties | SaveChangesOptions.UseRelativeUri | SaveChangesOptions.UseJsonBatch;
+            const SaveChangesOptions All = SaveChangesOptions.ContinueOnError | SaveChangesOptions.BatchWithSingleChangeset | SaveChangesOptions.BatchWithIndependentOperations | SaveChangesOptions.ReplaceOnUpdate | SaveChangesOptions.PostOnlySetProperties | SaveChangesOptions.UseRelativeUri | SaveChangesOptions.UseJsonBatch | SaveChangesOptions.BulkUpdate;
 
             // Make sure no higher order bits are set.
             if ((options | All) != All)
@@ -3543,6 +3776,12 @@ namespace Microsoft.OData.Client
             if (Util.IsFlagSet(options, SaveChangesOptions.UseJsonBatch) && !Util.IsBatch(options))
             {
                 throw Error.InvalidOperation(Strings.Context_MustBeUsedWith("SaveChangesOptions.UseJsonBatch", "DataServiceCollection"));
+            }
+
+            // BulkUpdate cannot be used in Batch Requests
+            if (Util.IsFlagSet(options, SaveChangesOptions.BulkUpdate) && Util.IsBatch(options))
+            {
+                throw Error.ArgumentOutOfRange(nameof(options));
             }
         }
 
@@ -3638,7 +3877,7 @@ namespace Microsoft.OData.Client
             {
                 if (mediaLink)
                 {
-                    // special case for requesting the "media" value of an ATOM media link entry
+                    // special case for requesting the "media" value of a media link entry
                     Uri relativeUri = UriUtil.CreateUri(XmlConstants.UriValueSegment, UriKind.Relative);
                     requestUri = UriUtil.CreateUri(box.GetResourceUri(this.BaseUriResolver, true /*queryLink*/), relativeUri);
                 }

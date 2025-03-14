@@ -101,7 +101,7 @@ namespace Microsoft.Test.Taupo.OData.WCFService
         {
             using (var messageReader = new ODataMessageReader(message, this.GetDefaultReaderSettings(), this.Model))
             {
-                var entryReader = messageReader.CreateODataResourceReader(entitySet.EntityType());
+                var entryReader = messageReader.CreateODataResourceReader(entitySet.EntityType);
 
                 while (entryReader.Read())
                 {
@@ -109,7 +109,7 @@ namespace Microsoft.Test.Taupo.OData.WCFService
                     {
                         case ODataReaderState.ResourceEnd:
                             var entry = (ODataResource)entryReader.Item;
-                            foreach (var property in entry.Properties)
+                            foreach (var property in entry.Properties.OfType<ODataProperty>())
                             {
                                 this.DataContext.UpdateItem(entitySet, entityKeys, property.Name, property.Value);
                             }

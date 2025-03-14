@@ -34,7 +34,7 @@ namespace Microsoft.OData.Tests
         {
             // We care about the write stream being disposed
             // We don't care about the stream passed to the write stream
-            using (var writeStream = new ODataWriteStream(
+            using (Stream writeStream = new ODataWriteStream(
                 new MemoryStream(),
                 this.streamListener,
                 synchronous))
@@ -51,7 +51,7 @@ namespace Microsoft.OData.Tests
         [InlineData(false, "StreamDisposedAsync")]
         public void WriteStreamDisposeShouldBeIdempotent(bool synchronous, string expected)
         {
-            var writeStream = new ODataWriteStream(
+            Stream writeStream = new ODataWriteStream(
                 new MemoryStream(),
                 this.streamListener,
                 synchronous);
@@ -67,12 +67,11 @@ namespace Microsoft.OData.Tests
             Assert.Equal(expected, result);
         }
 
-#if NETCOREAPP3_1
         [Fact]
-        public async Task WriteStreamDisposeShouldInvokeStreamDisposedAsync()
+        public async Task WriteStreamDisposeAsyncShouldInvokeStreamDisposedAsync()
         {
-            await using (var writeStream = new ODataWriteStream(
-                new MemoryStream(),
+            await using (Stream writeStream = new ODataWriteStream(
+                new AsyncStream(new MemoryStream()),
                 this.streamListener)) // `synchronous` argument becomes irrelevant
             {
             }
@@ -83,10 +82,10 @@ namespace Microsoft.OData.Tests
         }
 
         [Fact]
-        public async Task WriteStreamDisposeAsyncShouldBeIdempotent()
+        public async Task WriteStreamDisposeAsyncShouldBeIdempotentAsync()
         {
-            var writeStream = new ODataWriteStream(
-                new MemoryStream(),
+            Stream writeStream = new ODataWriteStream(
+                new AsyncStream(new MemoryStream()),
                 this.streamListener);
 
             // 1st call to DisposeAsync
@@ -99,23 +98,6 @@ namespace Microsoft.OData.Tests
             // StreamDisposeAsync was written only once
             Assert.Equal("StreamDisposedAsync", result);
         }
-
-#else
-        [Fact]
-        public async Task WriteStreamDisposeShouldInvokeStreamDisposedAsync()
-        {
-            using (var writeStream = new ODataWriteStream(
-                new MemoryStream(),
-                this.streamListener,
-                /*synchronous*/ false))
-            {
-            }
-
-            var result = await this.ReadStreamContentsAsync();
-
-            Assert.Equal("StreamDisposedAsync", result);
-        }
-#endif
 
         private string ReadStreamContents()
         {

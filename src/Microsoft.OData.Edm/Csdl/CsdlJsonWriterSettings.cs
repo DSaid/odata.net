@@ -4,8 +4,6 @@
 // </copyright>
 //---------------------------------------------------------------------
 
-#if NETSTANDARD2_0
-
 namespace Microsoft.OData.Edm.Csdl
 {
     /// <summary>
@@ -23,4 +21,3 @@ namespace Microsoft.OData.Edm.Csdl
         public bool IsIeee754Compatible { get; set; }
     }
 }
-#endif

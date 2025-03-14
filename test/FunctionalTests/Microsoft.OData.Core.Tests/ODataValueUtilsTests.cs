@@ -6,6 +6,8 @@
 
 using System;
 using Xunit;
+using System.IO;
+using System.Text.Json;
 
 namespace Microsoft.OData.Tests
 {
@@ -16,6 +18,8 @@ namespace Microsoft.OData.Tests
         {
             var enumValue = Feature.Feature1.ToODataValue() as ODataEnumValue;
             Assert.Equal("Feature1", enumValue.Value);
+
+            Assert.Equal("Feature1", enumValue.ToString());
         }
 
         [Fact]
@@ -46,6 +50,26 @@ namespace Microsoft.OData.Tests
             Feature2 = 2,
             Feature3 = 4,
             Feature4 = 8,
+        }
+
+        [Fact]
+        public void ConvertsJsonElementToODataValue()
+        {
+            string jsonString = "{\"foo\":\"bar\"}";
+            JsonDocument jsonDoc = JsonDocument.Parse(jsonString);
+            ODataValue odataValue = jsonDoc.RootElement.ToODataValue();
+
+            ODataJsonElementValue odataJsonValue = odataValue as ODataJsonElementValue;
+            Assert.NotNull(odataJsonValue);
+
+            var stream = new MemoryStream();
+            var jsonWriter = new Utf8JsonWriter(stream);
+            odataJsonValue.Value.WriteTo(jsonWriter);
+            jsonWriter.Flush();
+            stream.Position = 0;
+            var output = new StreamReader(stream).ReadToEnd();
+
+            Assert.Equal(jsonString, output);
         }
     }
 }

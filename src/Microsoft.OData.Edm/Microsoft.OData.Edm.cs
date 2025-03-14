@@ -40,6 +40,10 @@ namespace Microsoft.OData.Edm
         internal const string EdmType_UnexpectedEdmType = "EdmType_UnexpectedEdmType";
         internal const string NavigationPropertyBinding_PathIsNotValid = "NavigationPropertyBinding_PathIsNotValid";
         internal const string MultipleMatchingPropertiesFound = "MultipleMatchingPropertiesFound";
+        internal const string TargetPath_FirstSegmentMustBeIEdmEntityContainer = "TargetPath_FirstSegmentMustBeIEdmEntityContainer";
+        internal const string TargetPath_SecondSegmentMustBeIEdmEntityContainerElement = "TargetPath_SecondSegmentMustBeIEdmEntityContainerElement";
+        internal const string TargetPath_SegmentsMustNotContainNullSegment = "TargetPath_SegmentsMustNotContainNullSegment";
+        internal const string TypeCast_HierarchyNotFollowed = "TypeCast_HierarchyNotFollowed";
         internal const string Edm_Evaluator_NoTermTypeAnnotationOnType = "Edm_Evaluator_NoTermTypeAnnotationOnType";
         internal const string Edm_Evaluator_NoValueAnnotationOnType = "Edm_Evaluator_NoValueAnnotationOnType";
         internal const string Edm_Evaluator_NoValueAnnotationOnElement = "Edm_Evaluator_NoValueAnnotationOnElement";
@@ -119,6 +123,7 @@ namespace Microsoft.OData.Edm
         internal const string EdmModel_Validator_Semantic_AmbiguousType = "EdmModel_Validator_Semantic_AmbiguousType";
         internal const string EdmModel_Validator_Semantic_InvalidNavigationPropertyType = "EdmModel_Validator_Semantic_InvalidNavigationPropertyType";
         internal const string EdmModel_Validator_Semantic_NavigationPropertyWithRecursiveContainmentTargetMustBeOptional = "EdmModel_Validator_Semantic_NavigationPropertyWithRecursiveContainmentTargetMustBeOptional";
+        internal const string EdmModel_Validator_Semantic_RecursiveComplexTypedPropertyMustBeOptional = "EdmModel_Validator_Semantic_RecursiveComplexTypedPropertyMustBeOptional";
         internal const string EdmModel_Validator_Semantic_NavigationPropertyWithRecursiveContainmentSourceMustBeFromZeroOrOne = "EdmModel_Validator_Semantic_NavigationPropertyWithRecursiveContainmentSourceMustBeFromZeroOrOne";
         internal const string EdmModel_Validator_Semantic_NavigationPropertyWithNonRecursiveContainmentSourceMustBeFromOne = "EdmModel_Validator_Semantic_NavigationPropertyWithNonRecursiveContainmentSourceMustBeFromOne";
         internal const string EdmModel_Validator_Semantic_ComplexTypeMustHaveProperties = "EdmModel_Validator_Semantic_ComplexTypeMustHaveProperties";
@@ -231,7 +236,7 @@ namespace Microsoft.OData.Edm
         internal const string CsdlParser_ReferentialConstraintRequiresOneDependent = "CsdlParser_ReferentialConstraintRequiresOneDependent";
         internal const string CsdlParser_ReferentialConstraintRequiresOnePrincipal = "CsdlParser_ReferentialConstraintRequiresOnePrincipal";
         internal const string CsdlParser_InvalidIfExpressionIncorrectNumberOfOperands = "CsdlParser_InvalidIfExpressionIncorrectNumberOfOperands";
-        internal const string CsdlParser_InvalidIsTypeExpressionIncorrectNumberOfOperands = "CsdlParser_InvalidIsTypeExpressionIncorrectNumberOfOperands";
+        internal const string CsdlParser_InvalidIsOfExpressionIncorrectNumberOfOperands = "CsdlParser_InvalidIsOfExpressionIncorrectNumberOfOperands";
         internal const string CsdlParser_InvalidCastExpressionIncorrectNumberOfOperands = "CsdlParser_InvalidCastExpressionIncorrectNumberOfOperands";
         internal const string CsdlParser_InvalidLabeledElementExpressionIncorrectNumberOfOperands = "CsdlParser_InvalidLabeledElementExpressionIncorrectNumberOfOperands";
         internal const string CsdlParser_InvalidTypeName = "CsdlParser_InvalidTypeName";
@@ -327,6 +332,7 @@ namespace Microsoft.OData.Edm
         internal const string TimeOfDay_InvalidCompareToTarget = "TimeOfDay_InvalidCompareToTarget";
         internal const string EdmVocabularyAnnotations_DidNotFindDefaultValue = "EdmVocabularyAnnotations_DidNotFindDefaultValue";
         internal const string EdmVocabularyAnnotations_TermTypeNotSupported = "EdmVocabularyAnnotations_TermTypeNotSupported";
+        internal const string EdmVocabularyAnnotations_InvalidLocationForTargetPathAnnotation = "EdmVocabularyAnnotations_InvalidLocationForTargetPathAnnotation";
 
         static EdmRes loader = null;
         ResourceManager resources;

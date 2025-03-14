@@ -46,8 +46,8 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                 using (var messageWriter = this.CreateMessageWriter(responseMessage))
                 {
                     var entitySet = this.DataSource.Model.FindDeclaredEntitySet("Customers");
-                    var entityType = entitySet.EntityType();
-                    ODataDeltaWriter deltaWriter = messageWriter.CreateODataDeltaWriter(entitySet, entityType);
+                    var entityType = entitySet.EntityType;
+                    ODataWriter deltaWriter = messageWriter.CreateODataDeltaResourceSetWriter(entitySet, entityType);
 
                     var deltaFeed = new ODataDeltaResourceSet();
                     var deltaEntry = new ODataResource
@@ -76,8 +76,11 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                         NavigationSourceName = "Orders"
                     });
 
-                    var deletedEntry = new ODataDeltaDeletedEntry(
-                        new Uri(ServiceConstants.ServiceBaseUri, entitySet.Name + "(2)").AbsoluteUri, DeltaDeletedEntryReason.Deleted);
+                    var deletedEntry = new ODataDeletedResource
+                    {
+                        Id = new Uri(ServiceConstants.ServiceBaseUri, entitySet.Name + "(2)"),
+                        Reason = DeltaDeletedEntryReason.Deleted,
+                    };
 
                     deltaFeed.DeltaLink = new Uri(ServiceConstants.ServiceBaseUri, "$delta?$token=common");
 
@@ -88,7 +91,7 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                     deltaWriter.WriteDeltaLink(addedLink);
                     deltaWriter.WriteStart(navigationEntry);
                     deltaWriter.WriteEnd();
-                    deltaWriter.WriteDeltaDeletedEntry(deletedEntry);
+                    deltaWriter.Write(deletedEntry);
                     deltaWriter.WriteEnd();
                 }
             }
@@ -98,11 +101,11 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                 using (var messageWriter = this.CreateMessageWriter(responseMessage))
                 {
                     var accountsSet = this.DataSource.Model.FindDeclaredEntitySet("Accounts");
-                    var accountType = accountsSet.EntityType();
+                    var accountType = accountsSet.EntityType;
                     var myPisNav = accountType.FindProperty("MyPaymentInstruments") as IEdmNavigationProperty;
                     var piSet = accountsSet.FindNavigationTarget(myPisNav);
-                    var piType = piSet.EntityType();
-                    ODataDeltaWriter deltaWriter = messageWriter.CreateODataDeltaWriter(piSet as IEdmContainedEntitySet, piType);
+                    var piType = piSet.EntityType;
+                    ODataWriter deltaWriter = messageWriter.CreateODataDeltaResourceSetWriter(piSet as IEdmContainedEntitySet, piType);
 
                     var deltaFeed = new ODataDeltaResourceSet();
                     var deltaEntry = new ODataResource
@@ -111,13 +114,11 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                         Properties = new[] { new ODataProperty { Name = "FriendlyName", Value = "GGGG" } }
                     };
 
-                    var deletedEntry = new ODataDeltaDeletedEntry(
-                        new Uri(ServiceConstants.ServiceBaseUri, "Accounts(103)/MyPaymentInstruments(103901)/BillingStatements(103901001)").AbsoluteUri,
-                        DeltaDeletedEntryReason.Deleted);
-                    deletedEntry.SetSerializationInfo(new ODataDeltaSerializationInfo()
+                    var deletedEntry = new ODataDeletedResource
                     {
-                        NavigationSourceName = "Accounts(103)/MyPaymentInstruments(103901)/BillingStatements"
-                    });
+                        Id = new Uri(ServiceConstants.ServiceBaseUri, "Accounts(103)/MyPaymentInstruments(103901)/BillingStatements(103901001)"),
+                        Reason = DeltaDeletedEntryReason.Deleted,
+                    };
 
                     var deletedLink = new ODataDeltaDeletedLink(
                         new Uri(ServiceConstants.ServiceBaseUri, "Accounts(103)/MyPaymentInstruments(103901)"),
@@ -150,7 +151,7 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                     deltaWriter.WriteStart(deltaFeed);
                     deltaWriter.WriteStart(deltaEntry);
                     deltaWriter.WriteEnd();
-                    deltaWriter.WriteDeltaDeletedEntry(deletedEntry);
+                    deltaWriter.Write(deletedEntry);
                     deltaWriter.WriteDeltaDeletedLink(deletedLink);
                     deltaWriter.WriteStart(navigationEntry);
                     deltaWriter.WriteEnd();
@@ -164,8 +165,8 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                 using (var messageWriter = this.CreateMessageWriter(responseMessage))
                 {
                     var peopleSet = this.DataSource.Model.FindDeclaredEntitySet("People");
-                    var personType = peopleSet.EntityType();
-                    ODataDeltaWriter deltaWriter = messageWriter.CreateODataDeltaWriter(peopleSet, personType);
+                    var personType = peopleSet.EntityType;
+                    ODataWriter deltaWriter = messageWriter.CreateODataDeltaResourceSetWriter(peopleSet, personType);
 
                     var deltaFeed = new ODataDeltaResourceSet();
                     var deltaEntry = new ODataResource
@@ -181,9 +182,11 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                     var addedLink = new ODataDeltaLink(
                         new Uri(ServiceConstants.ServiceBaseUri, "People(1)"), new Uri(ServiceConstants.ServiceBaseUri, "Orders(7)"), "Orders");
 
-                    var deletedEntry = new ODataDeltaDeletedEntry(
-                        new Uri(ServiceConstants.ServiceBaseUri, "People(2)").AbsoluteUri,
-                        DeltaDeletedEntryReason.Changed);
+                    var deletedEntry = new ODataDeletedResource
+                    {
+                        Id = new Uri(ServiceConstants.ServiceBaseUri, "People(2)"),
+                        Reason = DeltaDeletedEntryReason.Changed
+                    };
 
                     var deletedLink = new ODataDeltaDeletedLink(
                         new Uri(ServiceConstants.ServiceBaseUri, "People(1)"),
@@ -214,7 +217,7 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                     deltaWriter.WriteDeltaLink(addedLink);
                     deltaWriter.WriteStart(navigationEntry);
                     deltaWriter.WriteEnd();
-                    deltaWriter.WriteDeltaDeletedEntry(deletedEntry);
+                    deltaWriter.Write(deletedEntry);
                     deltaWriter.WriteEnd();
                 }
             }
@@ -226,8 +229,8 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                     var customerSet = this.DataSource.Model.FindDeclaredEntitySet("Customers");
                     var orderSet = this.DataSource.Model.FindDeclaredEntitySet("Orders");
                     var peopleSet = this.DataSource.Model.FindDeclaredEntitySet("People");
-                    var customerType = customerSet.EntityType();
-                    ODataDeltaWriter deltaWriter = messageWriter.CreateODataDeltaWriter(customerSet, customerType);
+                    var customerType = customerSet.EntityType;
+                    ODataWriter deltaWriter = messageWriter.CreateODataDeltaResourceSetWriter(customerSet, customerType);
 
                     // Delta feed and entry
                     var deltaFeed = new ODataDeltaResourceSet
@@ -345,8 +348,8 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                 using (var messageWriter = this.CreateMessageWriter(responseMessage))
                 {
                     var entitySet = this.DataSource.Model.FindDeclaredEntitySet("Customers");
-                    var entityType = entitySet.EntityType();
-                    ODataDeltaWriter deltaWriter = messageWriter.CreateODataDeltaWriter(entitySet, entityType);
+                    var entityType = entitySet.EntityType;
+                    ODataWriter deltaWriter = messageWriter.CreateODataDeltaResourceSetWriter(entitySet, entityType);
 
                     var deltaFeed = new ODataDeltaResourceSet();
                     var deltaEntry1 = new ODataResource
@@ -380,12 +383,11 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                         NavigationSourceName = "Orders"
                     });
 
-                    var deletedOrderEntry = new ODataDeltaDeletedEntry(
-                        new Uri(ServiceConstants.ServiceBaseUri, "Orders(20)").AbsoluteUri, DeltaDeletedEntryReason.Deleted);
-                    deletedOrderEntry.SetSerializationInfo(new ODataDeltaSerializationInfo()
+                    var deletedOrderEntry = new ODataDeletedResource
                     {
-                        NavigationSourceName = "Orders"
-                    });
+                        Id = new Uri(ServiceConstants.ServiceBaseUri, "Orders(20)"),
+                        Reason = DeltaDeletedEntryReason.Deleted,
+                    };
 
                     var deltaEntry2 = new ODataResource
                     {
@@ -403,7 +405,7 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                     deltaWriter.WriteDeltaLink(addedLink);
                     deltaWriter.WriteStart(navigationEntry);
                     deltaWriter.WriteEnd();
-                    deltaWriter.WriteDeltaDeletedEntry(deletedOrderEntry);
+                    deltaWriter.Write(deletedOrderEntry);
                     deltaWriter.WriteStart(deltaEntry2);
                     deltaWriter.WriteEnd();
                     deltaWriter.WriteEnd();

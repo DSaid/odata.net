@@ -11,12 +11,11 @@ namespace Microsoft.OData.Client.Materialization
     using System.Diagnostics;
     using Microsoft.OData;
     using Microsoft.OData.Client.Metadata;
-    using DSClient = Microsoft.OData.Client;
 
     /// <summary>
-    /// Materializer state for a given ODataResource
+    /// ObjectMaterializer state for a given ODataResource
     /// </summary>
-    internal class MaterializerEntry
+    internal class MaterializerEntry : IMaterializerState
     {
         /// <summary>The entry.</summary>
         private readonly ODataResource entry;
@@ -24,7 +23,7 @@ namespace Microsoft.OData.Client.Materialization
         /// <summary>entity descriptor object which keeps track of the entity state and other entity specific information.</summary>
         private readonly EntityDescriptor entityDescriptor;
 
-        /// <summary>True if the context format is Atom or if the MergeOption is anything other than NoTracking.</summary>
+        /// <summary>True if the MergeOption is anything other than NoTracking.</summary>
         private readonly bool isTracking;
 
         /// <summary>Entry flags.</summary>
@@ -32,6 +31,9 @@ namespace Microsoft.OData.Client.Materialization
 
         /// <summary>List of navigation links for this entry.</summary>
         private ICollection<ODataNestedResourceInfo> navigationLinks = ODataMaterializer.EmptyLinks;
+
+        /// <summary>List of navigation links for this entry.</summary>
+        private List<IMaterializerState> nestedItems = new List<IMaterializerState>();    
 
         /// <summary>
         /// Creates a new instance of MaterializerEntry.
@@ -59,7 +61,7 @@ namespace Microsoft.OData.Client.Materialization
             string serverTypeName = this.Entry.TypeName;
             if (entry.TypeAnnotation != null)
             {
-                // If the annotation has a value use it. Otherwise, in JSON-Light, the types can be inferred from the
+                // If the annotation has a value use it. Otherwise, in JSON, the types can be inferred from the
                 // context URI even if they are not present on the wire, so just use the type name from the entry.
                 if (entry.TypeAnnotation.TypeName != null || this.Format != ODataFormat.Json)
                 {
@@ -116,9 +118,17 @@ namespace Microsoft.OData.Client.Materialization
         }
 
         /// <summary>
-        /// True if the context format is Atom or if the context's MergeOption is anything other than NoTracking.
+        /// Gets the nested <see cref="IMaterializerState"/> items.
+        /// </summary>
+        internal List<IMaterializerState> NestedItems
+        {
+            get { return this.nestedItems; }
+        }
+
+        /// <summary>
+        /// True if the context's MergeOption is anything other than NoTracking.
         /// This is used to avoid building URI metadata information that is not needed outside of the context, such
-        /// as odata.id and odata.editlink. Since this information is always available in the payload with Atom, for
+        /// as odata.id and odata.editlink. Since this information is always available in the payload, for
         /// backward compatibility we continue using it as we always have, even for NoTracking cases.
         /// </summary>
         public bool IsTracking
@@ -144,7 +154,7 @@ namespace Microsoft.OData.Client.Materialization
         /// <remarks>
         /// Non-property content goes to annotations.
         /// </remarks>
-        public IEnumerable<ODataProperty> Properties
+        public IEnumerable<ODataPropertyInfo> Properties
         {
             get { return this.entry != null ? this.entry.Properties : null; }
         }
@@ -224,13 +234,14 @@ namespace Microsoft.OData.Client.Materialization
         /// <param name="format">The format the entry was read in.</param>
         /// <param name="isTracking">True if the contents of the entry will be tracked in the context, otherwise False.</param>
         /// <param name="model">The client model.</param>
+        /// <param name="materializerContext">The current materializer context.</param>
         /// <returns>A new materializer entry.</returns>
-        public static MaterializerEntry CreateEntry(ODataResource entry, ODataFormat format, bool isTracking, ClientEdmModel model)
+        public static MaterializerEntry CreateEntry(ODataResource entry, ODataFormat format, bool isTracking, ClientEdmModel model, IODataMaterializerContext materializerContext)
         {
-            Debug.Assert(entry.GetAnnotation<MaterializerEntry>() == null, "MaterializerEntry has already been created.");
+            Debug.Assert(materializerContext.GetAnnotation<MaterializerEntry>(entry) == null, "MaterializerEntry has already been created.");
 
             MaterializerEntry materializerEntry = new MaterializerEntry(entry, format, isTracking, model);
-            entry.SetAnnotation<MaterializerEntry>(materializerEntry);
+            materializerContext.SetAnnotation<MaterializerEntry>(entry, materializerEntry);
 
             return materializerEntry;
         }
@@ -251,10 +262,16 @@ namespace Microsoft.OData.Client.Materialization
         /// Gets an entry for a given ODataResource.
         /// </summary>
         /// <param name="entry">The ODataResource.</param>
+        /// <param name="materializerContext">The current materializer context.</param>
         /// <returns>The materializer entry</returns>
-        public static MaterializerEntry GetEntry(ODataResource entry)
+        public static MaterializerEntry GetEntry(ODataResource entry, IODataMaterializerContext materializerContext)
         {
-            return entry.GetAnnotation<MaterializerEntry>();
+            if (entry == null && materializerContext.AutoNullPropagation)
+            {
+                return null;
+            }
+
+            return materializerContext.GetAnnotation<MaterializerEntry>(entry);
         }
 
         /// <summary>
@@ -263,7 +280,7 @@ namespace Microsoft.OData.Client.Materialization
         /// <param name="link">The link.</param>
         public void AddNestedResourceInfo(ODataNestedResourceInfo link)
         {
-            if (this.IsTracking)
+            if (this.IsTracking && !this.Entry.IsTransient)
             {
                 this.EntityDescriptor.AddNestedResourceInfo(link.Name, link.Url);
                 Uri associationLinkUrl = link.AssociationLinkUrl;
@@ -291,12 +308,12 @@ namespace Microsoft.OData.Client.Materialization
                 // Named stream properties are represented on the result type as a DataServiceStreamLink, which contains the
                 // ReadLink and EditLink for the stream. We need to build this metadata information even with NoTracking,
                 // because it is exposed on the result instances directly, not just in the context.
-                foreach (ODataProperty property in this.Properties)
+                foreach (ODataPropertyInfo propertyInfo in this.Properties)
                 {
-                    ODataStreamReferenceValue streamValue = property.Value as ODataStreamReferenceValue;
-                    if (streamValue != null)
+                    if (propertyInfo is ODataProperty property
+                        && property.Value is ODataStreamReferenceValue streamValue)
                     {
-                        StreamDescriptor streamInfo = this.EntityDescriptor.AddStreamInfoIfNotPresent(property.Name);
+                        StreamDescriptor streamInfo = this.EntityDescriptor.AddStreamInfoIfNotPresent(propertyInfo.Name);
 
                         if (streamValue.ReadLink != null)
                         {
@@ -359,6 +376,15 @@ namespace Microsoft.OData.Client.Materialization
 
                 this.EntityDescriptorUpdated = true;
             }
+        }
+
+        /// <summary>
+        /// Adds a <see cref="IMaterializerState"/> item to the entry's nested items.
+        /// </summary>
+        /// <param name="nestedItem">The <see cref="IMaterializerState"/> item to add to the entry's nested items.</param>
+        internal void AddNestedItem(IMaterializerState nestedItem)
+        {
+            this.nestedItems.Add(nestedItem);
         }
 
         #region Private methods.

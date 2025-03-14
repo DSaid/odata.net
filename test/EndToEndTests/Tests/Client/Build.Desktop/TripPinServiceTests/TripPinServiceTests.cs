@@ -17,7 +17,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
     using Microsoft.Test.OData.Services.TestServices.TrippinServiceReference;
     using Xunit;
 
-    public class TripPinServiceTests : ODataWCFServiceTestsBase<DefaultContainer>
+    public class TripPinServiceTests : ODataWCFServiceTestsBase<DefaultContainer>, IDisposable
     {
         private const string NameSpacePrefix = "Microsoft.OData.SampleService.Models.TripPin.";
         private int lastResponseStatusCode;
@@ -46,7 +46,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
 
                     var entries = resources.Where(e => e != null && e.Id != null);
                     Assert.Equal(20, entries.Count());
-                    Assert.Equal("Russell", entries.ElementAt(0).Properties.Single(p => p.Name == "FirstName").Value);
+                    Assert.Equal("Russell", Assert.IsType<ODataProperty>(entries.ElementAt(0).Properties.Single(p => p.Name == "FirstName")).Value);
                 }
             }
         }
@@ -63,7 +63,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                     ODataResource entry = new QueryEntryHelper(this) { RequestUri = uri, MimeType = mimeType, IfMatch = "*" }.Execute();
 
                     Assert.NotNull(entry);
-                    Assert.Equal("Russell", entry.Properties.Single(p => p.Name == "FirstName").Value);
+                    Assert.Equal("Russell", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "FirstName")).Value);
                 }
             }
         }
@@ -80,7 +80,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                     var entries = new QueryFeedHelper(this) { RequestUri = uri, MimeType = mimeType }.Execute();
 
                     Assert.Equal(3, entries.Count);
-                    Assert.Equal(0, entries[0].Properties.Single(p => p.Name == "TripId").Value);
+                    Assert.Equal(0, Assert.IsType<ODataProperty>(entries[0].Properties.Single(p => p.Name == "TripId")).Value);
                 }
             }
         }
@@ -98,7 +98,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
 
                     var entries = resources.Where(e => e != null && e.Id != null);
                     Assert.Equal(4, entries.Count());
-                    Assert.Equal("scottketchum", entries.ElementAt(0).Properties.Single(p => p.Name == "UserName").Value);
+                    Assert.Equal("scottketchum", Assert.IsType<ODataProperty>(entries.ElementAt(0).Properties.Single(p => p.Name == "UserName")).Value);
                 }
             }
         }
@@ -114,7 +114,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 {
                     ODataResource entry = new QueryEntryHelper(this) { RequestUri = uri, MimeType = mimeType, IfMatch = "*" }.Execute();
                     Assert.NotNull(entry);
-                    Assert.Equal("AA", entry.Properties.Single(p => p.Name == "AirlineCode").Value);
+                    Assert.Equal("AA", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "AirlineCode")).Value);
                 }
             }
         }
@@ -145,7 +145,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                     }.Execute();
 
                     Assert.Equal(2, count);// russellwhyte and marshallgaray
-                    Assert.Equal("russellwhyte", entries[0].Properties.Single(p => p.Name == "UserName").Value);
+                    Assert.Equal("russellwhyte", Assert.IsType<ODataProperty>(entries[0].Properties.Single(p => p.Name == "UserName")).Value);
                 }
             }
         }
@@ -189,8 +189,8 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 if (!mimeTypes[i].Contains(MimeTypes.ODataParameterNoMetadata))
                 {
                     entry = new QueryEntryHelper(this) { RequestUri = string.Format("People('{0}')", userNames[i]), MimeType = mimeTypes[i], IfMatch = "*" }.Execute();
-                    var nickName = entry.Properties.Single(p => p.Name == "NickName").Value;
-                    Assert.Equal("\"NickName\"", (entry.Properties.Single(p => p.Name == "NickName").Value as ODataUntypedValue).RawValue);
+                    var nickName = Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "NickName")).Value;
+                    Assert.Equal("\"NickName\"", Assert.IsType<ODataUntypedValue>(Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "NickName")).Value).RawValue);
                 }
             }
         }
@@ -244,7 +244,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                             {
                                 if (argument.Entry.TypeName.EndsWith("EventLocation"))
                                 {
-                                    Assert.Equal("" + (100 + i), (argument.Entry.Properties.Single(p => p.Name == "RoomNumber").Value as ODataUntypedValue).RawValue);
+                                    Assert.Equal("" + (100 + i), Assert.IsType<ODataUntypedValue>(Assert.IsType<ODataProperty>(argument.Entry.Properties.Single(p => p.Name == "RoomNumber")).Value).RawValue);
                                 }
                             }
                     }.Execute();
@@ -344,7 +344,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             // verify the insert
             Assert.Equal(201, responseMessage.StatusCode);
             var entry = new QueryEntryHelper(this) { RequestUri = "People('VincentZhao')", MimeType = mimeType, IfMatch = "*" }.Execute();
-            Assert.Equal("VincentZhao", entry.Properties.Single(p => p.Name == "UserName").Value);
+            Assert.Equal("VincentZhao", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "UserName")).Value);
         }
 
         [Fact]
@@ -389,8 +389,8 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                     }.Execute();
 
                     Assert.Equal(2, entries.Where(e => e != null && e.Id != null).Count());
-                    Assert.NotNull(entries.SingleOrDefault(e => (string)e.Properties.Single(p => p.Name == "UserName").Value == "russellwhyte"));
-                    Assert.NotNull(entries.SingleOrDefault(e => (string)e.Properties.Single(p => p.Name == "UserName").Value == "ronaldmundy"));
+                    Assert.NotNull(entries.SingleOrDefault(e => (string)Assert.IsType<ODataProperty>(e.Properties.Single(p => p.Name == "UserName")).Value == "russellwhyte"));
+                    Assert.NotNull(entries.SingleOrDefault(e => (string)Assert.IsType<ODataProperty>(e.Properties.Single(p => p.Name == "UserName")).Value == "ronaldmundy"));
                 }
             }
         }
@@ -503,7 +503,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 {
                     ODataResource entry = new QueryEntryHelper(this) { RequestUri = uri, MimeType = mimeType, IfMatch = "*" }.Execute();
                     Assert.NotNull(entry);
-                    Assert.Equal("AA", entry.Properties.Single(p => p.Name == "AirlineCode").Value);
+                    Assert.Equal("AA", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "AirlineCode")).Value);
                 }
             }
         }
@@ -521,7 +521,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
 
                     var entries = resources.Where(e => e != null && e.Id != null);
                     Assert.Equal(2, entries.Count());
-                    Assert.Equal("scottketchum", entries.ElementAt(1).Properties.Single(p => p.Name == "UserName").Value);
+                    Assert.Equal("scottketchum", Assert.IsType<ODataProperty>(entries.ElementAt(1).Properties.Single(p => p.Name == "UserName")).Value);
                 }
             }
         }
@@ -538,7 +538,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                     var entries = new QueryFeedHelper(this) { RequestUri = uri, MimeType = mimeType }.Execute();
 
                     Assert.Equal(1, entries.Count);
-                    Assert.Equal(new Guid("dd6a09c0-e59b-4745-8612-f4499b676c47"), entries[0].Properties.Single(p => p.Name == "ShareId").Value);
+                    Assert.Equal(new Guid("dd6a09c0-e59b-4745-8612-f4499b676c47"), Assert.IsType<ODataProperty>(entries[0].Properties.Single(p => p.Name == "ShareId")).Value);
                 }
             }
         }
@@ -554,7 +554,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 {
                     ODataResource entry = new QueryEntryHelper(this) { RequestUri = uri, MimeType = mimeType, IfMatch = "*" }.Execute();
                     Assert.NotNull(entry);
-                    Assert.Equal("KLAX", entry.Properties.Single(p => p.Name == "IcaoCode").Value);
+                    Assert.Equal("KLAX", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "IcaoCode")).Value);
                 }
 
                 uri = "GetNearestAirport(lat = 37, lon =-122)";
@@ -563,7 +563,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 {
                     ODataResource entry = new QueryEntryHelper(this) { RequestUri = uri, MimeType = mimeType, IfMatch = "*" }.Execute();
                     Assert.NotNull(entry);
-                    Assert.Equal("KSFO", entry.Properties.Single(p => p.Name == "IcaoCode").Value);
+                    Assert.Equal("KSFO", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "IcaoCode")).Value);
                 }
             }
         }
@@ -577,7 +577,11 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
         {
             var predicate = new Func<IEnumerable<ODataResource>, string, bool>((entries, icaoCode) =>
             {
-                return entries.Count(entry => entry.Properties.Count(p => p.Name == "IcaoCode" && object.Equals(p.Value, icaoCode)) == 1) == 1;
+                return entries.Count(entry => entry.Properties.Count(p =>
+                {
+                    var prop = Assert.IsType<ODataProperty>(p);
+                    return prop.Name == "IcaoCode" && Equals(prop.Value, icaoCode);
+                }) == 1) == 1;
             });
 
             foreach (var mimeType in mimeTypes)
@@ -601,7 +605,11 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
         {
             var predicate = new Func<IEnumerable<ODataResource>, string, bool>((entries, userName) =>
             {
-                return entries.Count(entry => entry.Properties.Count(p => p.Name == "UserName" && object.Equals(p.Value, userName)) == 1) == 1;
+                return entries.Count(entry => entry.Properties.Count(p =>
+                {
+                    var prop = Assert.IsType<ODataProperty>(p);
+                    return prop.Name == "UserName" && Equals(prop.Value, userName);
+                }) == 1) == 1;
             });
 
             {
@@ -944,12 +952,12 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
         public void ETagDeleteIfMatchOk()
         {
             const string uri = "People('russellwhyte')";
-            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJsonLight }.Execute().ETag;
+            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJson }.Execute().ETag;
 
             new DeleteHelper(this)
             {
                 RequestUri = uri,
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 204,
                 IfMatch = expectedETag,
             }.Execute();
@@ -961,7 +969,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 204,
                 IfMatch = "*",
             }.Execute();
@@ -973,7 +981,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 412,
                 IfMatch = "W/\"123\"",
             }.Execute();
@@ -983,12 +991,12 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
         public void ETagDeleteIfNoneMatchOk()
         {
             const string uri = "People('russellwhyte')";
-            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJsonLight }.Execute().ETag;
+            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJson }.Execute().ETag;
 
             new DeleteHelper(this)
             {
                 RequestUri = uri,
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 412,
                 IfNoneMatch = expectedETag,
             }.Execute();
@@ -1000,7 +1008,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 412,
                 IfNoneMatch = "*",
             }.Execute();
@@ -1012,7 +1020,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 204,
                 IfNoneMatch = "W/\"123\"",
             }.Execute();
@@ -1024,7 +1032,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 428,
             }.Execute();
         }
@@ -1097,7 +1105,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
         public void ETagQueryEntityIfNoneMatchOk()
         {
             const string uri = "People('russellwhyte')";
-            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJsonLight }.Execute().ETag;
+            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJson }.Execute().ETag;
 
             foreach (var mimeType in this.mimeTypes)
             {
@@ -1195,12 +1203,12 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
         public void ETagUpdateIfMatchOk()
         {
             const string uri = "People('russellwhyte')";
-            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJsonLight }.Execute().ETag;
+            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJson }.Execute().ETag;
 
             var helper = new UpdateHelper(this)
             {
                 RequestUri = uri,
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = CreateEntry("russellwhyte"),
                 ExpectedStatusCode = 204,
@@ -1218,7 +1226,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             var helper = new UpdateHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = CreateEntry("russellwhyte"),
                 ExpectedStatusCode = 204,
@@ -1234,7 +1242,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new UpdateHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = CreateEntry("russellwhyte"),
                 ExpectedStatusCode = 412,
@@ -1246,12 +1254,12 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
         public void ETagUpdateIfNoneMatchOk()
         {
             const string uri = "People('russellwhyte')";
-            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJsonLight }.Execute().ETag;
+            var expectedETag = new QueryEntryHelper(this) { RequestUri = uri, MimeType = MimeTypes.ApplicationJson }.Execute().ETag;
 
             new UpdateHelper(this)
             {
                 RequestUri = uri,
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = CreateEntry("russellwhyte"),
                 ExpectedStatusCode = 412,
@@ -1265,7 +1273,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             var helper = new UpdateHelper(this)
             {
                 RequestUri = "People('newuser')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = CreateEntry("newuser"),
                 ExpectedStatusCode = 201,
@@ -1281,7 +1289,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             var helper = new UpdateHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = CreateEntry("russellwhyte"),
                 ExpectedStatusCode = 204,
@@ -1297,7 +1305,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new UpdateHelper(this)
             {
                 RequestUri = "People('russellwhyte')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = CreateEntry("russellwhyte"),
                 ExpectedStatusCode = 428,
@@ -1779,16 +1787,16 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                         }
                     }
                 },
-                MimeType = MimeTypes.ApplicationJsonLight
+                MimeType = MimeTypes.ApplicationJson
             }.Execute();
 
             var entry = new QueryEntryHelper(this)
             {
                 RequestUri = "Photos(1)",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
             }.Execute();
             Assert.NotNull(entry);
-            Assert.Equal("New Photo", entry.Properties.Single(p => p.Name == "Name").Value);
+            Assert.Equal("New Photo", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "Name")).Value);
         }
 
         [Fact]
@@ -1849,7 +1857,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteHelper(this)
             {
                 RequestUri = "Photos(1)",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 204,
             }.Execute();
 
@@ -1899,7 +1907,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteHelper(this)
             {
                 RequestUri = "Airports('KSFO')",
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 ExpectedStatusCode = 400,
             }.Execute();
         }
@@ -1945,7 +1953,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new UpdateHelper(this)
             {
                 RequestUri = uri,
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = new ODataResourceWrapper()
                 {
@@ -1967,7 +1975,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 ExpectedStatusCode = 200,
             }.Execute();
 
-            Assert.Equal("russellwhyte", entry.Properties.Single(p => p.Name == "UserName").Value);
+            Assert.Equal("russellwhyte", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "UserName")).Value);
         }
 
         #endregion
@@ -1982,7 +1990,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new UpdateHelper(this)
             {
                 RequestUri = uri,
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "Airports",
                 EntryToUpdate = new ODataResourceWrapper()
                 {
@@ -2003,7 +2011,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 ExpectedStatusCode = 200,
             }.Execute();
 
-            Assert.Equal("SFO", entry.Properties.Single(p => p.Name == "IataCode").Value);
+            Assert.Equal("SFO", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "IataCode")).Value);
         }
 
         #endregion
@@ -2018,7 +2026,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new UpdateHelper(this)
             {
                 RequestUri = uri,
-                MimeType = MimeTypes.ApplicationJsonLight,
+                MimeType = MimeTypes.ApplicationJson,
                 EntitySetName = "People",
                 EntryToUpdate = new ODataResourceWrapper()
                 {
@@ -2040,7 +2048,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 ExpectedStatusCode = 200,
             }.Execute();
 
-            Assert.NotEqual(long.MinValue, entry.Properties.Single(p => p.Name == "Concurrency").Value);
+            Assert.NotEqual(long.MinValue, Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "Concurrency")).Value);
         }
 
         #endregion
@@ -2053,7 +2061,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteLinkHelper(this)
             {
                 RequestUri = "Me/Photo/$ref",
-                MimeType = MimeTypes.ApplicationJsonLight
+                MimeType = MimeTypes.ApplicationJson
             }.Execute();
 
             new QueryEntryHelper(this)
@@ -2083,7 +2091,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteLinkHelper(this)
             {
                 RequestUri = "People('ronaldmundy')/Friends/$ref?$id=" + target.Id.AbsoluteUri,
-                MimeType = MimeTypes.ApplicationJsonLight
+                MimeType = MimeTypes.ApplicationJson
             }.Execute();
 
             var resources = new QueryFeedHelper(this)
@@ -2092,7 +2100,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 MimeType = MimeTypes.ApplicationJson + MimeTypes.ODataParameterFullMetadata,
             }.Execute();
             var friends = resources.Where(r => r.Id != null);
-            target = friends.SingleOrDefault(friend => object.Equals(friend.Properties.Single(p => p.Name == "UserName").Value, "russellwhyte"));
+            target = friends.SingleOrDefault(friend => Equals(Assert.IsType<ODataProperty>(friend.Properties.Single(p => p.Name == "UserName")).Value, "russellwhyte"));
             Assert.Null(target);
 
             target = new QueryEntryHelper(this)
@@ -2115,7 +2123,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             new DeleteLinkHelper(this)
             {
                 RequestUri = "People('russellwhyte')/Trips/$ref?$id=" + target.Id.AbsoluteUri,
-                MimeType = MimeTypes.ApplicationJsonLight
+                MimeType = MimeTypes.ApplicationJson
             }.Execute();
 
             new QueryEntryHelper(this)
@@ -2622,7 +2630,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 var response = request.GetResponse();
 
                 Assert.Equal(this.ExpectedStatusCode, response.StatusCode);
-                var validationHelper = new QueryEntryHelper(this.Host) { RequestUri = this.RequestUri, MimeType = MimeTypes.ApplicationJsonLight, IfMatch = "*", };
+                var validationHelper = new QueryEntryHelper(this.Host) { RequestUri = this.RequestUri, MimeType = MimeTypes.ApplicationJson, IfMatch = "*", };
                 if (response.StatusCode == 204)
                 {
                     // delete succeeded
@@ -2708,7 +2716,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
                 {
                     this.ResponseETag = response.GetHeader("ETag");
 
-                    Assert.NotNull(new QueryEntryHelper(this.Host) { RequestUri = this.RequestUri, MimeType = MimeTypes.ApplicationJsonLight, IfMatch = "*" }.Execute());
+                    Assert.NotNull(new QueryEntryHelper(this.Host) { RequestUri = this.RequestUri, MimeType = MimeTypes.ApplicationJson, IfMatch = "*" }.Execute());
                 }
 
                 OnRequestedHandler(new RequestedArgument() { Response = response });
@@ -3113,6 +3121,11 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             Assert.NotNull(context);
 
             return context;
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
         }
     }
 }

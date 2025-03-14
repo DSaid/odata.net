@@ -7,7 +7,7 @@
 using System;
 using Microsoft.OData.Evaluation;
 using Microsoft.OData.Tests.Evaluation;
-using Microsoft.OData.Tests.JsonLight;
+using Microsoft.OData.Tests.Json;
 using Xunit;
 
 namespace Microsoft.OData.Tests
@@ -41,7 +41,7 @@ namespace Microsoft.OData.Tests
             };
 
             var serializationInfo = new ODataResourceSerializationInfo { NavigationSourceName = "Set", NavigationSourceEntityTypeName = "ns.BaseType", ExpectedTypeName = "ns.BaseType" };
-            var typeContext = ODataResourceTypeContext.Create(serializationInfo, null, null, null, true);
+            var typeContext = ODataResourceTypeContext.Create(serializationInfo, null, null, null);
             var metadataContext = new TestMetadataContext();
             var entryMetadataContext = ODataResourceMetadataContext.Create(entry, typeContext, serializationInfo, null, metadataContext, new SelectedPropertiesNode(SelectedPropertiesNode.SelectionType.EntireSubtree), null);
             var fullMetadataBuilder = new ODataConventionalEntityMetadataBuilder(entryMetadataContext, metadataContext,
@@ -186,7 +186,7 @@ namespace Microsoft.OData.Tests
         {
             this.testSubject.Metadata = new Uri("http://www.example.com/$metadata#foo");
             Action test = () => this.testSubject.SetMetadataBuilder(ODataResourceMetadataBuilder.Null, MetadataDocumentUri);
-            test.Throws<ODataException>(Strings.ODataJsonLightValidationUtils_OpenMetadataReferencePropertyNotSupported("http://www.example.com/$metadata#foo", MetadataDocumentUri.AbsoluteUri));
+            test.Throws<ODataException>(Strings.ODataJsonValidationUtils_OpenMetadataReferencePropertyNotSupported("http://www.example.com/$metadata#foo", MetadataDocumentUri.AbsoluteUri));
         }
 
         [Fact]

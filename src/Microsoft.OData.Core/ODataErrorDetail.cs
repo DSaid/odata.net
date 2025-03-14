@@ -7,9 +7,10 @@
 
 namespace Microsoft.OData
 {
-    #region
-    using System.Globalization;
-    #endregion
+    #region Namespaces
+    using System.Text;
+    using Microsoft.OData.Json;
+    #endregion Namespaces
 
     /// <summary>
     /// Class representing an error detail.
@@ -18,7 +19,7 @@ namespace Microsoft.OData
     {
         /// <summary>Gets or sets the error code to be used in payloads.</summary>
         /// <returns>The error code to be used in payloads.</returns>
-        public string ErrorCode { get; set; }
+        public string Code { get; set; }
 
         /// <summary>Gets or sets the error message.</summary>
         /// <returns>The error message.</returns>
@@ -32,11 +33,29 @@ namespace Microsoft.OData
         /// Serialization to Json format string.
         /// </summary>
         /// <returns>The string in Json format</returns>
-        internal string ToJson()
+        internal string ToJsonString()
         {
-            return string.Format(CultureInfo.InvariantCulture,
-                "{{ \"errorcode\": \"{0}\", \"message\": \"{1}\", \"target\": \"{2}\" }}",
-                this.ErrorCode ?? "", this.Message ?? "", this.Target ?? "");
+            StringBuilder builder = new StringBuilder();
+
+            // `code` and `message` must be included
+            string code = this.Code == null ? string.Empty : JsonValueUtils.GetEscapedJsonString(this.Code);
+            string message = this.Message == null ? string.Empty : JsonValueUtils.GetEscapedJsonString(this.Message);
+
+            builder.Append('{');
+            builder.Append('"').Append(JsonConstants.ODataErrorCodeName).Append("\":");
+            builder.Append('"').Append(code).Append('"');
+            builder.Append(",\"").Append(JsonConstants.ODataErrorMessageName).Append("\":");
+            builder.Append('"').Append(message).Append('"');
+
+            if (this.Target != null)
+            {
+                builder.Append(",\"").Append(JsonConstants.ODataErrorTargetName).Append("\":");
+                builder.Append("\"").Append(JsonValueUtils.GetEscapedJsonString(this.Target)).Append('"');
+            }
+
+            builder.Append('}');
+
+            return builder.ToString();
         }
-}
+    }
 }

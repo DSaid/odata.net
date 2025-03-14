@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.OData.UriParser;
 using Microsoft.OData.Edm;
+using Microsoft.OData.Edm.Vocabularies;
 using Xunit;
 
 namespace Microsoft.OData.Tests.UriParser.Metadata
@@ -294,15 +295,6 @@ namespace Microsoft.OData.Tests.UriParser.Metadata
                "Segments with multiple key values must specify them in 'name=value' form.");
         }
 
-        [Fact]
-        public void ResolveOperationImportsReturnsEmptyEnumerableForNoEntityContainerInModel()
-        {
-            var operationImportName = "NonExistingOperationImport";
-            var odataUriResolver = new ODataUriResolver { EnableCaseInsensitive = true };
-            var result = odataUriResolver.ResolveOperationImports(new EdmModel(), operationImportName);
-            Assert.Empty(result);
-        }
-
         private void TestPos<TResult>(string originalStr, string caseInsensitiveStr, Func<ODataUriParser, TResult> parse, Action<TResult> verify, string errorMessage)
         {
             TestUriParserExtension(originalStr, caseInsensitiveStr, parse, verify, errorMessage, Model, parser => parser.Resolver = new Pos());
@@ -312,6 +304,359 @@ namespace Microsoft.OData.Tests.UriParser.Metadata
         {
             TestUriParserExtension(originalStr, caseInsensitiveStr, parse, verify, errorMessage, Model, parser => parser.Resolver = new StringAsEnumResolver());
         }
+
+        #region "Resolve type"
+        [Theory]
+        [InlineData("Fully.Qualified.Namespace.Employee", "Employee", false, false)]
+        [InlineData("fully.Qualified.nameSpace.employee", "Employee", true, false)]
+        [InlineData("Fully.Qualified.Namespace.Employee", "Employee", false, true)]
+        [InlineData("fully.Qualified.nameSpace.employee", "Employee", true, true)]
+        public void ResolveType_ReturnsMatchingSchemaType(string input, string expectedType, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEdmSchemaType type = resolver.ResolveType(model, input);
+
+            Assert.Equal(expectedType, type.Name);
+        }
+
+        [Theory]
+        [InlineData("fully.Qualified.nameSpace.employee", false, false)]
+        [InlineData("fully.Qualified.nameSpace.employ", true, false)]
+        [InlineData("fully.Qualified.nameSpace.employee", false, true)]
+        [InlineData("fully.Qualified.nameSpace.employ", true, true)]
+        public void ResolveTypeReturnsNullIfNameDoesNotExist(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            var result = resolver.ResolveType(model, input);
+
+            Assert.Null(result);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ResolveType_ThrowsErrors_IfThereAreDuplicates_WithImmutableModel(bool isImmutable)
+        {
+            var model = new EdmModel();
+            var type1 = model.AddEntityType("NS.Models", "Person");
+            type1.AddKeys(type1.AddStructuralProperty("Id", EdmPrimitiveTypeKind.Int32));
+            var type2 = model.AddEntityType("NS.Models", "person");
+            type2.AddKeys(type1.AddStructuralProperty("Id", EdmPrimitiveTypeKind.Int32));
+
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = true };
+
+            var exception = Assert.Throws<ODataException>(() => resolver.ResolveType(model, "ns.models.person"));
+            Assert.Equal(Strings.UriParserMetadata_MultipleMatchingTypesFound("ns.models.person"), exception.Message);
+        }
+        #endregion
+
+        #region "Resolve bound operations"
+        [Theory]
+        [InlineData("Fully.Qualified.Namespace.HasHat", false, false)]
+        [InlineData("fully.Qualified.nameSpace.hashat", true, false)]
+        [InlineData("Fully.Qualified.Namespace.HasHat", false, true)]
+        [InlineData("fully.Qualified.nameSpace.hashat", true, true)]
+        public void ResolveBoundOperations_ReturnsMatchingBoundOperations(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var bindingType = model.FindType("Fully.Qualified.Namespace.Person");
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEnumerable<IEdmOperation> matches = resolver.ResolveBoundOperations(model, input, bindingType);
+
+            Assert.NotEmpty(matches);
+
+            var exepectedMatches = model.FindBoundOperations("Fully.Qualified.Namespace.HasHat", bindingType);
+            foreach (var expectedMatch in exepectedMatches )
+            {
+                Assert.Contains(matches, match => expectedMatch == match);
+            }
+        }
+
+        [Theory]
+        [InlineData("Fully.Qualified.Namespace.DoesNotExist", false, false)]
+        [InlineData("fully.Qualified.nameSpace.doestnotexist", true, false)]
+        [InlineData("Fully.Qualified.Namespace.DoesNotExist", false, true)]
+        [InlineData("fully.Qualified.nameSpace.doesnotexist", true, true)]
+        [InlineData("Fully.Qualified.Namespace.getPersonByDate", true, true)]
+        public void ResolveBoundOperations_ReturnsEmptyCollectionIfThereAreNoMatches(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var bindingType = model.FindType("Fully.Qualified.Namespace.Person");
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEnumerable<IEdmOperation> matches = resolver.ResolveBoundOperations(model, input, bindingType);
+            Assert.Empty(matches);
+        }
+        #endregion
+
+        #region "Resolve unbound operations"
+        [Theory]
+        [InlineData("Fully.Qualified.Namespace.GetPersonByDate", false, false)]
+        [InlineData("fully.Qualified.nameSpace.getpersonByDate", true, false)]
+        [InlineData("Fully.Qualified.Namespace.GetPersonByDate", false, true)]
+        [InlineData("fully.Qualified.nameSpace.getpersonByDate", true, true)]
+        public void ResolveUnboundOperations_ReturnsMatchingUnboundOperations(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEnumerable<IEdmOperation> matches = resolver.ResolveUnboundOperations(model, input);
+
+            Assert.NotEmpty(matches);
+
+            var exepectedMatches = model.FindOperations("Fully.Qualified.Namespace.GetPersonByDate");
+            foreach (var expectedMatch in exepectedMatches)
+            {
+                Assert.Contains(matches, match => expectedMatch == match);
+            }
+        }
+
+        [Theory]
+        [InlineData("Fully.Qualified.Namespace.DoesNotExist", false, false)]
+        [InlineData("fully.Qualified.nameSpace.doestnotexist", true, false)]
+        [InlineData("Fully.Qualified.Namespace.DoesNotExist", false, true)]
+        [InlineData("fully.Qualified.nameSpace.doesnotexist", true, true)]
+        [InlineData("Fully.Qualified.Namespace.hasHat", true, true)]
+        public void ResolveUnboundOperations_ReturnsEmptyCollectionIfThereAreNoMatches(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEnumerable<IEdmOperation> matches = resolver.ResolveUnboundOperations(model, input);
+            Assert.Empty(matches);
+        }
+        #endregion
+
+        #region "Resolve term"
+        [Theory]
+        [InlineData("Fully.Qualified.Namespace.PrimitiveTerm", false, false)]
+        [InlineData("fully.Qualified.nameSpace.primitiveTerm", true, false)]
+        [InlineData("Fully.Qualified.Namespace.PrimitiveTerm", false, true)]
+        [InlineData("fully.Qualified.nameSpace.primitiveTerm", true, true)]
+        public void ResolveTerm_ReturnsMatchingTerm(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEdmTerm match = resolver.ResolveTerm(model, input);
+
+            var expectedMatch = model.FindTerm("Fully.Qualified.Namespace.PrimitiveTerm");
+            Assert.Equal(expectedMatch, match);
+        }
+
+        [Theory]
+        [InlineData("Fully.Qualified.Namespace.DoesNotExist", false, false)]
+        [InlineData("fully.Qualified.nameSpace.doestnotexist", true, false)]
+        [InlineData("Fully.Qualified.Namespace.DoesNotExist", false, true)]
+        [InlineData("fully.Qualified.nameSpace.doesnotexist", true, true)]
+        public void ResolveTerms_ReturnsNullIfThereIsNoMatch(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEdmTerm match = resolver.ResolveTerm(model, input);
+            Assert.Null(match);
+        }
+
+        [Fact]
+        public void ResolveTerm_ThrowsException_IfThereAreDuplicates()
+        {
+            var model = new EdmModel();
+            model.AddTerm("NS", "SomeTerm", EdmPrimitiveTypeKind.String);
+            model.AddTerm("NS", "someTerm", EdmPrimitiveTypeKind.String);
+            model.MarkAsImmutable();
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = true };
+
+            var exception = Assert.Throws<ODataException>(() => resolver.ResolveTerm(model, "ns.someTerm"));
+            Assert.Equal(Strings.UriParserMetadata_MultipleMatchingTypesFound("ns.someTerm"), exception.Message);
+        }
+        #endregion
+
+        #region "Resolve navigation sources"
+        [Theory]
+        [InlineData("Shapes", false, false)]
+        [InlineData("shapes", true, false)]
+        [InlineData("Shapes", false, true)]
+        [InlineData("shapes", true, true)]
+        public void ResolveNavigationSource_ReturnsMatchingNavigationSource(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEdmNavigationSource result = resolver.ResolveNavigationSource(model, input);
+
+            Assert.Equal("Shapes", result.Name);
+        }
+
+        [Theory]
+        [InlineData("shapes", false, false)]
+        [InlineData("shape", true, false)]
+        [InlineData("shapes", false, true)]
+        [InlineData("shape", true, true)]
+        public void ResolveNavigationSource_ReturnsNull_IfNoMatch(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEdmNavigationSource result = resolver.ResolveNavigationSource(model, input);
+
+            Assert.Null(result);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ResolveNavigationSource_ThrowsException_IfMultipleMatchesFound(bool isImmutable)
+        {
+            var model = new EdmModel();
+            var type = model.AddEntityType("NS", "Person");
+            type.AddKeys(type.AddStructuralProperty("Id", EdmPrimitiveTypeKind.Int32));
+
+            var container = model.AddEntityContainer("NS", "Container");
+            container.AddEntitySet("People", type);
+            container.AddSingleton("people", type);
+
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = true };
+
+            var exception = Assert.Throws<ODataException>(() => resolver.ResolveNavigationSource(model, "peoPle"));
+            Assert.Equal(Strings.UriParserMetadata_MultipleMatchingNavigationSourcesFound("peoPle"), exception.Message);
+        }
+        #endregion
+
+        #region "Resolve Operation Imports"
+        [Theory]
+        [InlineData("GetMostImporantPerson", false, false)]
+        [InlineData("getMostImporantperson", true, false)]
+        [InlineData("GetMostImporantPerson", false, true)]
+        [InlineData("getMostImporantperson", true, true)]
+        public void ResolveOperationImports_ReturnsMatchingOperationImports(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEnumerable<IEdmOperationImport> result = resolver.ResolveOperationImports(model, input);
+
+            Assert.NotEmpty(result);
+
+            var expectedMatches = model.EntityContainer.Elements.OfType<IEdmOperationImport>().Where(op => op.Name == "GetMostImporantPerson").ToList();
+            foreach (var expectedMatch in expectedMatches)
+            {
+                Assert.Contains(result, match => expectedMatch == match);
+            }
+
+            Assert.Equal(2, expectedMatches.Count);
+        }
+
+        [Theory]
+        [InlineData("getMostImporantPerson", false, false)]
+        [InlineData("DoesNotExist", true, false)]
+        [InlineData("DoestNotExist", false, true)]
+        [InlineData("DoesNotExist", true, true)]
+        public void ResolveOperationImports_ReturnsEmptyCollection_IfThereAreNoMatches(string input, bool enableCaseInsensitive, bool isImmutable)
+        {
+            var model = HardCodedTestModel.GetEdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var resolver = new ODataUriResolver { EnableCaseInsensitive = enableCaseInsensitive };
+
+            IEnumerable<IEdmOperationImport> result = resolver.ResolveOperationImports(model, input);
+
+            Assert.Empty(result);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ResolveOperationImportsReturnsEmptyEnumerableForNoEntityContainerInModel(bool isImmutable)
+        {
+            var model = new EdmModel();
+            if (isImmutable)
+            {
+                model.MarkAsImmutable();
+            }
+
+            var operationImportName = "NonExistingOperationImport";
+            var odataUriResolver = new ODataUriResolver { EnableCaseInsensitive = true };
+            var result = odataUriResolver.ResolveOperationImports(model, operationImportName);
+            Assert.Empty(result);
+        }
+        #endregion
     }
 
     class Pos : ODataUriResolver

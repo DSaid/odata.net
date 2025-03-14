@@ -543,8 +543,8 @@ namespace EdmLibTests.FunctionalTests
             E2.AddNavigationTarget(p201, E1);
             E2.AddNavigationTarget(p203, E1);
 
-            Assert.IsTrue(E1.EntityType() == t1, "EntitySet element type");
-            Assert.IsTrue(E2.EntityType() == t2, "EntitySet element type");
+            Assert.IsTrue(E1.EntityType == t1, "EntitySet element type");
+            Assert.IsTrue(E2.EntityType == t2, "EntitySet element type");
         }
 
         [TestMethod]
@@ -596,8 +596,8 @@ namespace EdmLibTests.FunctionalTests
             E1.AddNavigationTarget(p201, S1);
             E1.AddNavigationTarget(p203, S1);
 
-            Assert.IsTrue(S1.EntityType() == t1, "EntitySet element type");
-            Assert.IsTrue(S2.EntityType() == t2, "EntitySet element type");
+            Assert.IsTrue(S1.EntityType == t1, "EntitySet element type");
+            Assert.IsTrue(S2.EntityType == t2, "EntitySet element type");
         }
 
         [TestMethod]
@@ -957,7 +957,7 @@ namespace EdmLibTests.FunctionalTests
             Assert.AreEqual(EdmPrimitiveTypeKind.Duration, timeRef.PrimitiveKind(), "Correct primitive kind");
 
             Assert.IsNull(decimalRef.AsDecimal().Precision, "Decimal precision null when created with shortcut");
-            Assert.AreEqual(0, decimalRef.AsDecimal().Scale, "Decimal scale 0 when created with shortcut");
+            Assert.IsNull(decimalRef.AsDecimal().Scale, "Decimal scale equals null when created with shortcut");
 
             Assert.AreEqual(0, timeRef.AsTemporal().Precision, "Duration precision equals to 0 when created with shortcut");
         }

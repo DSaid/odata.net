@@ -81,7 +81,7 @@ namespace Microsoft.OData.UriParser
         {
             Debug.Assert(segmentText != null, "segment != null");
 
-            int parenthesisStart = segmentText.IndexOf('(');
+            int parenthesisStart = segmentText.IndexOf('(', StringComparison.Ordinal);
             if (parenthesisStart < 0)
             {
                 identifier = segmentText;
@@ -138,7 +138,7 @@ namespace Microsoft.OData.UriParser
                     }
 
                     // Keep track of last navigation source.
-                    IEdmNavigationSource navigationSource = parsedSegments.Last().TranslateWith(new DetermineNavigationSourceTranslator());
+                    IEdmNavigationSource navigationSource = parsedSegments.Last().TranslateWith(DetermineNavigationSourceTranslator.Instance);
                     if (navigationSource != null)
                     {
                         lastNavigationSource = navigationSource;
@@ -550,7 +550,7 @@ namespace Microsoft.OData.UriParser
             // Creating a filter clause helps validate the expression and create the expression nodes (including nested parameter aliases).
             FilterClause filterClause = GenerateFilterClause(
                 lastNavigationSource,
-                typeSegment == null ? lastNavigationSource.EntityType() : typeSegment.TargetEdmType,
+                typeSegment == null ? lastNavigationSource.EntityType : typeSegment.TargetEdmType,
                 filterExpression);
 
             // 4) Create filter segment with the validated expression and add it to parsed segments.
@@ -1371,7 +1371,7 @@ namespace Microsoft.OData.UriParser
         /// <returns>Whether or not a type segment was created for the identifier.</returns>
         private bool TryCreateTypeNameSegment(ODataPathSegment previous, string identifier, string parenthesisExpression)
         {
-            if (identifier.IndexOf('.') < 0)
+            if (identifier.IndexOf('.', StringComparison.Ordinal) < 0)
             {
                 return false;
             }
@@ -1516,7 +1516,7 @@ namespace Microsoft.OData.UriParser
                         segment.TargetKind = RequestTargetKind.Enum;
                         break;
                     default:
-                        Debug.Assert(property.Type.IsPrimitive() || property.Type.IsTypeDefinition(), "must be primitive type or type definition property");
+                        Debug.Assert(property.Type.IsPrimitive() || property.Type.IsTypeDefinition() || property.Type.IsUntyped(), "must be primitive type or type definition property");
                         segment.TargetKind = RequestTargetKind.Primitive;
                         break;
                 }

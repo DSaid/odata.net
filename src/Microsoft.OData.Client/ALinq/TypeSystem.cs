@@ -9,7 +9,10 @@ namespace Microsoft.OData.Client
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
+    using System.Linq;
     using System.Reflection;
+    using System.Text.RegularExpressions;
+    using Microsoft.OData.Client.Metadata;
     using Microsoft.OData.Edm;
     using Microsoft.OData.UriParser.Aggregation;
     using Microsoft.Spatial;
@@ -53,10 +56,11 @@ namespace Microsoft.OData.Client
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1810:InitializeReferenceTypeStaticFieldsInline", Justification = "Cleaner code")]
         static TypeSystem()
         {
-            const int ExpectedCount = 43;
+            const int ExpectedCount = 44;
             // string functions
             expressionMethodMap = new Dictionary<MethodInfo, string>(EqualityComparer<MethodInfo>.Default);
             expressionMethodMap.Add(typeof(string).GetMethod("Contains", new Type[] { typeof(string) }), @"contains");
+            expressionMethodMap.Add(typeof(Regex).GetMethod("IsMatch", new Type[] { typeof(string), typeof(string), typeof(RegexOptions) }), @"matchesPattern");
             expressionMethodMap.Add(typeof(string).GetMethod("EndsWith", new Type[] { typeof(string) }), @"endswith");
             expressionMethodMap.Add(typeof(string).GetMethod("StartsWith", new Type[] { typeof(string) }), @"startswith");
             expressionMethodMap.Add(typeof(string).GetMethod("IndexOf", new Type[] { typeof(string) }), @"indexof");
@@ -240,8 +244,27 @@ namespace Microsoft.OData.Client
         internal static bool TryGetQueryOptionMethod(MethodInfo mi, out string methodName)
         {
             return (expressionMethodMap.TryGetValue(mi, out methodName) ||
+                TryResolveUriFunction(mi, out methodName) ||
                 (IsVisualBasicAssembly(mi.DeclaringType.GetAssembly()) &&
                  expressionVBMethodMap.TryGetValue(mi.DeclaringType.FullName + "." + mi.Name, out methodName)));
+        }
+
+        /// <summary>
+        /// Sees if method is declared as a UriFunction and resolves the uri method name
+        /// </summary>
+        /// <param name="mi">The method info</param>
+        /// <param name="methodName">uri method name</param>
+        /// <returns>true/ false</returns>
+        private static bool TryResolveUriFunction(MethodInfo mi, out string methodName)
+        {
+            UriFunctionAttribute uriFunctionAttribute = (UriFunctionAttribute)mi.GetCustomAttributes(typeof(UriFunctionAttribute), false).FirstOrDefault();
+            if (uriFunctionAttribute != null)
+            {
+                methodName = ClientTypeUtil.GetServerDefinedName(mi);
+                return true;
+            }
+            methodName = null;
+            return false;
         }
 
         /// <summary>
@@ -380,7 +403,7 @@ namespace Microsoft.OData.Client
         private static bool IsVisualBasicAssembly(Assembly assembly)
         {
             string assemblyFullName = assembly.FullName;
-            if (assemblyFullName.Contains(VisualBasicAssemblyName) && assembly.FullName.Contains(VisualBasicAssemblyPublicKeyToken))
+            if (assemblyFullName.Contains(VisualBasicAssemblyName, StringComparison.Ordinal) && assembly.FullName.Contains(VisualBasicAssemblyPublicKeyToken, StringComparison.Ordinal))
             {
                 return true;
             }

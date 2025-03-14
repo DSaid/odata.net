@@ -597,12 +597,12 @@ namespace Microsoft.OData.Tests.Evaluation
         [Fact]
         public void EtagShouldBeUriEscaped()
         {
-            // if this fails System.Uri has changed its behavior and we may need to adjust how we encode our strings for JsonLight
+            // if this fails System.Uri has changed its behavior and we may need to adjust how we encode our strings for Json
             // .net 45 changed this behavior initially to escape ' to a value, but was changed. below test
             // validates that important uri literal values that OData uses don't change, and that we escape characters when
-            // producing the etag for JsonLight
-            var escapedStrings = Uri.EscapeUriString(@".:''-");
-            Assert.Equal(@".:''-", escapedStrings);
+            // producing the etag for Json
+            var escapedStrings = Uri.EscapeDataString(@".:''-");
+            Assert.Equal(@".%3A%27%27-", escapedStrings);
 
             var testSubject = new ODataConventionalEntityMetadataBuilder(new TestEntryMetadataContext { Resource = new ODataResource(), ETagProperties = new[] { new KeyValuePair<string, object>("ETag", "Value ") } }, this.metadataContext, this.uriBuilder);
             Assert.Equal(@"W/""'Value%20'""", testSubject.GetETag());
@@ -1005,7 +1005,7 @@ namespace Microsoft.OData.Tests.Evaluation
         {
             var photoProperty = this.derivedMultiKeyMultiEtagMleConventionalEntityMetadataBuilder.GetProperties( /*nonComputedProperties*/null).Single();
             Assert.Equal("Photo", photoProperty.Name);
-            var photo = (ODataStreamReferenceValue)photoProperty.Value;
+            var photo = Assert.IsType<ODataStreamReferenceValue>(Assert.IsType<ODataProperty>(photoProperty).Value);
             Assert.NotNull(photo);
             Assert.Equal(photo.EditLink, new Uri("http://odata.org/base/Products(KeyA='keya',KeyB=1)/TestModel.DerivedMleProduct/Photo"));
             Assert.Equal(photo.ReadLink, new Uri("http://odata.org/base/Products(KeyA='keya',KeyB=1)/TestModel.DerivedMleProduct/Photo"));
@@ -1018,7 +1018,7 @@ namespace Microsoft.OData.Tests.Evaluation
             this.derivedMultiKeyMultiEtagMleEntry.ReadLink = new Uri("http://somereadlink");
             var photoProperty = this.derivedMultiKeyMultiEtagMleConventionalEntityMetadataBuilder.GetProperties( /*nonComputedProperties*/null).Single();
             Assert.Equal("Photo", photoProperty.Name);
-            var photo = (ODataStreamReferenceValue)photoProperty.Value;
+            var photo = Assert.IsType<ODataStreamReferenceValue>(Assert.IsType<ODataProperty>(photoProperty).Value);
             Assert.NotNull(photo);
             Assert.Equal(photo.EditLink, new Uri("http://someeditlink/Photo"));
             Assert.Equal(photo.ReadLink, new Uri("http://somereadlink/Photo"));

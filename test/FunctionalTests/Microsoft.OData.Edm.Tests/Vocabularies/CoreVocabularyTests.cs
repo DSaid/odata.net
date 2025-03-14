@@ -18,14 +18,12 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
     /// <summary>
     /// Test core vocabulary
     /// </summary>
-    public class CoreVocabularyTests
+    public partial class CoreVocabularyTests
     {
         private readonly IEdmModel coreVocModel = CoreVocabularyModel.Instance;
 
-        [Fact]
-        public void TestBaseCoreVocabularyModel()
-        {
-            const string expectedText = @"<?xml version=""1.0"" encoding=""utf-16""?>
+#region expectedText
+        private const string expectedText = @"<?xml version=""1.0"" encoding=""utf-16""?>
 <Schema Namespace=""Org.OData.Core.V1"" Alias=""Core"" xmlns=""http://docs.oasis-open.org/odata/ns/edm"">
   <TypeDefinition Name=""MessageSeverity"" UnderlyingType=""Edm.String"">
     <Annotation Term=""Validation.AllowedValues"">
@@ -54,9 +52,20 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
   <TypeDefinition Name=""QualifiedTypeName"" UnderlyingType=""Edm.String"">
     <Annotation Term=""Core.Description"" String=""The qualified name of a type in scope."" />
   </TypeDefinition>
+  <TypeDefinition Name=""QualifiedActionName"" UnderlyingType=""Edm.String"">
+    <Annotation Term=""Core.Description"" String=""The qualified name of an action in scope."" />
+  </TypeDefinition>
+  <TypeDefinition Name=""QualifiedBoundOperationName"" UnderlyingType=""Edm.String"">
+    <Annotation Term=""Core.Description"" String=""The qualified name of a bound action or function in scope."" />
+    <Annotation Term=""Core.LongDescription"" String=""&#xA;&#x9;&#x9;&#x9;&#x9;Either&#xA;&#x9;&#x9;&#x9;&#x9;- the qualified name of an action, to indicate the single bound overload with the specified binding parameter type,&#xA;&#x9;&#x9;&#x9;&#x9;- the qualified name of a function, to indicate all bound overloads with the specified binding parameter type, or&#xA;&#x9;&#x9;&#x9;&#x9;- the qualified name of a function followed by parentheses containing a comma-separated list of parameter types, in the order of their definition, to identify a single function overload with the first (binding) parameter matching the specified parameter type.&#xA;&#x9;&#x9;&#x9;"" />
+  </TypeDefinition>
   <TypeDefinition Name=""LocalDateTime"" UnderlyingType=""Edm.String"">
     <Annotation Term=""Core.Description"" String=""A string representing a Local Date-Time value with no offset."" />
     <Annotation Term=""Validation.Pattern"" String=""^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9](\\.[0-9]+)?)?$"" />
+  </TypeDefinition>
+  <TypeDefinition Name=""SimpleIdentifier"" UnderlyingType=""Edm.String"">
+    <Annotation Term=""Core.Description"" String=""A [simple identifier](https://docs.oasis-open.org/odata/odata-csdl-xml/v4.01/odata-csdl-xml-v4.01.html#sec_SimpleIdentifier)"" />
+    <Annotation Term=""Validation.Pattern"" String=""^[\p{L}\p{Nl}_][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}\p{Cf}]{0,}$"" />
   </TypeDefinition>
   <ComplexType Name=""RevisionType"">
     <Property Name=""Version"" Type=""Edm.String"">
@@ -74,7 +83,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
       <Annotation Term=""Core.Description"" String=""Link relation type, see [IANA Link Relations](http://www.iana.org/assignments/link-relations/link-relations.xhtml)"" />
     </Property>
     <Property Name=""href"" Type=""Edm.String"" Nullable=""false"">
-      <Annotation Term=""Core.IsURL"" Bool=""true"" />
+      <Annotation Term=""Core.IsURL"" />
       <Annotation Term=""Core.Description"" String=""URL of related information"" />
     </Property>
     <Annotation Term=""Core.Description"" String=""The Link term is inspired by the `atom:link` element, see [RFC4287](https://tools.ietf.org/html/rfc4287#section-4.2.7), and the `Link` HTTP header, see [RFC5988](https://tools.ietf.org/html/rfc5988)"" />
@@ -102,7 +111,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
   <ComplexType Name=""ExternalExampleValue"" BaseType=""Core.ExampleValue"">
     <Property Name=""ExternalValue"" Type=""Edm.String"" Nullable=""false"">
       <Annotation Term=""Core.Description"" String=""Url reference to the value in its literal format"" />
-      <Annotation Term=""Core.IsURL"" Bool=""true"" />
+      <Annotation Term=""Core.IsURL"" />
     </Property>
   </ComplexType>
   <ComplexType Name=""MessageType"">
@@ -111,7 +120,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
     </Property>
     <Property Name=""message"" Type=""Edm.String"" Nullable=""false"">
       <Annotation Term=""Core.Description"" String=""Human-readable, language-dependent message text"" />
-      <Annotation Term=""Core.IsLanguageDependent"" Bool=""true"" />
+      <Annotation Term=""Core.IsLanguageDependent"" />
     </Property>
     <Property Name=""severity"" Type=""Core.MessageSeverity"" Nullable=""false"">
       <Annotation Term=""Core.Description"" String=""Severity of the message"" />
@@ -136,7 +145,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
   <ComplexType Name=""ResourceExceptionType"" BaseType=""Core.ExceptionType"">
     <Property Name=""retryLink"" Type=""Edm.String"">
       <Annotation Term=""Core.Description"" String=""A GET request to this URL retries retrieving the problematic instance"" />
-      <Annotation Term=""Core.IsURL"" Bool=""true"" />
+      <Annotation Term=""Core.IsURL"" />
     </Property>
   </ComplexType>
   <ComplexType Name=""DataModificationExceptionType"" BaseType=""Core.ExceptionType"">
@@ -149,6 +158,14 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
       <Annotation Term=""Validation.Maximum"" Decimal=""599"" />
     </Property>
   </ComplexType>
+  <ComplexType Name=""ContentDispositionType"">
+    <Property Name=""Type"" Type=""Edm.String"" DefaultValue=""attachment"" Nullable=""false"">
+      <Annotation Term=""Core.Description"" String=""The disposition type of the binary or stream value, see [RFC 6266, Disposition Type](https://datatracker.ietf.org/doc/html/rfc6266#section-4.2)"" />
+    </Property>
+    <Property Name=""Filename"" Type=""Edm.String"">
+      <Annotation Term=""Core.Description"" String=""The proposed filename for downloading the binary or stream value, see [RFC 6266, Disposition Parameter: 'Filename'](https://datatracker.ietf.org/doc/html/rfc6266#section-4.3)"" />
+    </Property>
+  </ComplexType>
   <ComplexType Name=""AlternateKey"">
     <Property Name=""Key"" Type=""Collection(Core.PropertyRef)"" Nullable=""false"">
       <Annotation Term=""Core.Description"" String=""The set of properties that make up this key"" />
@@ -158,19 +175,31 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
     <Property Name=""Name"" Type=""Edm.PropertyPath"" Nullable=""false"">
       <Annotation Term=""Core.Description"" String=""A path expression resolving to a primitive property of the entity type itself or to a primitive property of a complex or navigation property (recursively) of the entity type. The names of the properties in the path are joined together by forward slashes."" />
     </Property>
-    <Property Name=""Alias"" Type=""Edm.String"" Nullable=""false"">
+    <Property Name=""Alias"" Type=""Edm.String"">
       <Annotation Term=""Core.Description"" String=""A SimpleIdentifier that MUST be unique within the set of aliases, structural and navigation properties of the containing entity type that MUST be used in the key predicate of URLs"" />
     </Property>
   </ComplexType>
   <ComplexType Name=""Dictionary"" OpenType=""true"">
     <Annotation Term=""Core.Description"" String=""A dictionary of name-value pairs. Names must be valid property names, values may be restricted to a list of types via an annotation with term `Validation.OpenPropertyTypeConstraint`."" />
-    <Annotation Term=""Core.LongDescription"" String=""&#xA;Property|Type&#xA;:-------|:---&#xA;Any simple identifier | Any type listed in `Validation.OpenPropertyTypeConstraint`, or any type if there is no constraint&#xA;"" />
+    <Annotation Term=""Core.LongDescription"" String=""&#xA;&#x9;&#x9;&#x9;&#x9;Property|Type&#xA;&#x9;&#x9;&#x9;&#x9;:-------|:---&#xA;&#x9;&#x9;&#x9;&#x9;Any simple identifier | Any type listed in `Validation.OpenPropertyTypeConstraint`, or any type if there is no constraint&#xA;&#x9;&#x9;&#x9;"" />
   </ComplexType>
   <ComplexType Name=""OptionalParameterType"">
     <Property Name=""DefaultValue"" Type=""Edm.String"">
       <Annotation Term=""Core.Description"" String=""Default value for an optional parameter of primitive or enumeration type, using the same rules as the `cast` function in URLs."" />
       <Annotation Term=""Core.LongDescription"" String=""If no explicit DefaultValue is specified, the service is free on how to interpret omitting the parameter from the request. For example, a service might interpret an omitted optional parameter `KeyDate` as having the current date."" />
     </Property>
+  </ComplexType>
+  <ComplexType Name=""GeometryFeatureType"">
+    <Property Name=""geometry"" Type=""Edm.Geometry"">
+      <Annotation Term=""Core.Description"" String=""Location of the Feature"" />
+    </Property>
+    <Property Name=""properties"" Type=""Core.Dictionary"">
+      <Annotation Term=""Core.Description"" String=""Properties of the Feature"" />
+    </Property>
+    <Property Name=""id"" Type=""Edm.String"">
+      <Annotation Term=""Core.Description"" String=""Commonly used identifer for a Feature"" />
+    </Property>
+    <Annotation Term=""Core.Description"" String=""A [Feature Object](https://datatracker.ietf.org/doc/html/rfc7946#section-3.2) represents a spatially bounded thing"" />
   </ComplexType>
   <EnumType Name=""RevisionKind"">
     <Member Name=""Added"">
@@ -223,10 +252,10 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
       <Annotation Term=""Core.Description"" String=""Permission to invoke actions"" />
     </Member>
   </EnumType>
-  <Term Name=""ODataVersions"" Type=""Edm.String"" AppliesTo=""EntityContainer"">
+  <Term Name=""ODataVersions"" Type=""Edm.String"" AppliesTo=""EntityContainer"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""A space-separated list of supported versions of the OData Protocol. Note that 4.0 is implied by 4.01 and does not need to be separately listed."" />
   </Term>
-  <Term Name=""SchemaVersion"" Type=""Edm.String"" AppliesTo=""Schema Reference"">
+  <Term Name=""SchemaVersion"" Type=""Edm.String"" AppliesTo=""Schema Reference"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Service-defined value representing the version of the schema. Services MAY use semantic versioning, but clients MUST NOT assume this is the case."" />
   </Term>
   <Term Name=""Revisions"" Type=""Collection(Core.RevisionType)"" Nullable=""false"">
@@ -234,11 +263,11 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
   </Term>
   <Term Name=""Description"" Type=""Edm.String"">
     <Annotation Term=""Core.Description"" String=""A brief description of a model element"" />
-    <Annotation Term=""Core.IsLanguageDependent"" Bool=""true"" />
+    <Annotation Term=""Core.IsLanguageDependent"" />
   </Term>
   <Term Name=""LongDescription"" Type=""Edm.String"">
-    <Annotation Term=""Core.Description"" String=""A lengthy description of a model element"" />
-    <Annotation Term=""Core.IsLanguageDependent"" Bool=""true"" />
+    <Annotation Term=""Core.Description"" String=""A long description of a model element"" />
+    <Annotation Term=""Core.IsLanguageDependent"" />
   </Term>
   <Term Name=""Links"" Type=""Collection(Core.Link)"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Link to related information"" />
@@ -267,12 +296,16 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
     <Annotation Term=""Core.Description"" String=""Properties and terms annotated with this term are language-dependent"" />
     <Annotation Term=""Core.RequiresType"" String=""Edm.String"" />
   </Term>
-  <Term Name=""RequiresType"" Type=""Edm.String"" AppliesTo=""Term"">
+  <Term Name=""RequiresType"" Type=""Edm.String"" AppliesTo=""Term"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Terms annotated with this term can only be applied to elements that have a type that is identical to or derived from the given type name"" />
   </Term>
-  <Term Name=""ResourcePath"" Type=""Edm.String"" AppliesTo=""EntitySet Singleton ActionImport FunctionImport"">
+  <Term Name=""AppliesViaContainer"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""Term"" Nullable=""false"">
+    <Annotation Term=""Core.Description"" String=""The target path of an annotation with the tagged term MUST start with an entity container or the annotation MUST be embedded within an entity container, entity set or singleton"" />
+    <Annotation Term=""Core.LongDescription"" String=""&#xA;&#x9;&#x9;&#x9;&#x9;Services MAY additionally annotate a container-independent model element (entity type, property, navigation property) if allowed by the `AppliesTo` property of the term&#xA;&#x9;&#x9;&#x9;&#x9;and the annotation applies to all uses of that model element.&#xA;&#x9;&#x9;&#x9;"" />
+  </Term>
+  <Term Name=""ResourcePath"" Type=""Edm.String"" AppliesTo=""EntitySet Singleton ActionImport FunctionImport"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Resource path for entity container child, can be relative to xml:base and the request URL"" />
-    <Annotation Term=""Core.IsURL"" Bool=""true"" />
+    <Annotation Term=""Core.IsURL"" />
   </Term>
   <Term Name=""DereferenceableIDs"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""EntityContainer"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Entity-ids are URLs that locate the identified entity"" />
@@ -280,10 +313,10 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
   <Term Name=""ConventionalIDs"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""EntityContainer"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Entity-ids follow OData URL conventions"" />
   </Term>
-  <Term Name=""Permissions"" Type=""Core.Permission"" AppliesTo=""Property ComplexType TypeDefinition EntityType EntitySet NavigationProperty Action Function"">
+  <Term Name=""Permissions"" Type=""Core.Permission"" AppliesTo=""Property ComplexType TypeDefinition EntityType EntitySet NavigationProperty Action Function"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Permissions for accessing a resource"" />
   </Term>
-  <Term Name=""ContentID"" Type=""Edm.String"">
+  <Term Name=""ContentID"" Type=""Edm.String"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""A unique identifier for nested entities within a request."" />
   </Term>
   <Term Name=""DefaultNamespace"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""Schema Include"" Nullable=""false"">
@@ -303,28 +336,32 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
     <Annotation Term=""Core.Description"" String=""Properties and terms annotated with this term MUST contain a valid URL"" />
     <Annotation Term=""Core.RequiresType"" String=""Edm.String"" />
   </Term>
-  <Term Name=""AcceptableMediaTypes"" Type=""Collection(Edm.String)"" AppliesTo=""EntityType Property"" Nullable=""false"">
-    <Annotation Term=""Core.Description"" String=""Lists the MIME types acceptable for the annotated entity type marked with HasStream=&quot;true&quot; or the annotated stream property"" />
-    <Annotation Term=""Core.IsMediaType"" Bool=""true"" />
+  <Term Name=""AcceptableMediaTypes"" Type=""Collection(Edm.String)"" AppliesTo=""EntityType Property Term TypeDefinition Parameter ReturnType"" Nullable=""false"">
+    <Annotation Term=""Core.Description"" String=""Lists the MIME types acceptable for the annotated entity type marked with HasStream=&quot;true&quot; or the annotated binary, stream, or string property or term"" />
+    <Annotation Term=""Core.LongDescription"" String=""The annotation of a TypeDefinition propagates to the model elements having this type"" />
+    <Annotation Term=""Core.IsMediaType"" />
   </Term>
-  <Term Name=""MediaType"" Type=""Edm.String"" AppliesTo=""Property"">
-    <Annotation Term=""Core.Description"" String=""The media type of a binary resource"" />
-    <Annotation Term=""Core.IsMediaType"" Bool=""true"" />
-    <Annotation Term=""Core.RequiresType"" String=""Edm.Binary"" />
+  <Term Name=""MediaType"" Type=""Edm.String"" AppliesTo=""EntityType Property Term TypeDefinition Parameter ReturnType"">
+    <Annotation Term=""Core.Description"" String=""The media type of the media stream of the annotated entity type marked with HasStream=&quot;true&quot; or the annotated binary, stream, or string property or term"" />
+    <Annotation Term=""Core.LongDescription"" String=""The annotation of a TypeDefinition propagates to the model elements having this type"" />
+    <Annotation Term=""Core.IsMediaType"" />
   </Term>
   <Term Name=""IsMediaType"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""Property Term"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Properties and terms annotated with this term MUST contain a valid MIME type"" />
     <Annotation Term=""Core.RequiresType"" String=""Edm.String"" />
   </Term>
+  <Term Name=""ContentDisposition"" Type=""Core.ContentDispositionType"" AppliesTo=""EntityType Property Term"" Nullable=""false"">
+    <Annotation Term=""Core.Description"" String=""The content disposition of the media stream of the annotated entity type marked with HasStream=&quot;true&quot; or the annotated binary, stream, or string property or term"" />
+  </Term>
   <Term Name=""OptimisticConcurrency"" Type=""Collection(Edm.PropertyPath)"" AppliesTo=""EntitySet"" Nullable=""false"">
-    <Annotation Term=""Core.Description"" String=""Data modification requires the use of ETags. A non-empty collection contains the set of properties that are used to compute the ETag. An empty collection means that the service won't tell how it computes the ETag."" />
+    <Annotation Term=""Core.Description"" String=""Data modification requires the use of ETags. A non-empty collection contains the set of properties that are used to compute the ETag. An empty collection means that the service won't tell how it computes the ETag"" />
   </Term>
   <Term Name=""AdditionalProperties"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""EntityType ComplexType"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Instances of this type may contain properties in addition to those declared in $metadata"" />
     <Annotation Term=""Core.LongDescription"" String=""If specified as false clients can assume that instances will not contain dynamic properties, irrespective of the value of the OpenType attribute."" />
   </Term>
-  <Term Name=""AutoExpand"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""NavigationProperty Property"" Nullable=""false"">
-    <Annotation Term=""Core.Description"" String=""The service will automatically expand this stream or navigation property even if not requested with $expand"" />
+  <Term Name=""AutoExpand"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""EntityType NavigationProperty Property"" Nullable=""false"">
+    <Annotation Term=""Core.Description"" String=""The service will automatically expand this stream property, navigation property, or the media stream of this media entity type even if not requested with $expand"" />
   </Term>
   <Term Name=""AutoExpandReferences"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""NavigationProperty"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""The service will automatically expand this navigation property as entity references even if not requested with $expand=.../$ref"" />
@@ -332,7 +369,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
   <Term Name=""MayImplement"" Type=""Collection(Core.QualifiedTypeName)"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""A collection of qualified type names outside of the type hierarchy that instances of this type might be addressable as by using a type-cast segment."" />
   </Term>
-  <Term Name=""Ordered"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""Property NavigationProperty EntitySet ReturnType"" Nullable=""false"">
+  <Term Name=""Ordered"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""Property NavigationProperty EntitySet ReturnType Term"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Collection has a stable order. Ordered collections of primitive or complex types can be indexed by ordinal."" />
   </Term>
   <Term Name=""PositionalInsert"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""Property NavigationProperty EntitySet"" Nullable=""false"">
@@ -341,7 +378,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
   <Term Name=""AlternateKeys"" Type=""Collection(Core.AlternateKey)"" AppliesTo=""EntityType EntitySet NavigationProperty"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Communicates available alternate keys"" />
   </Term>
-  <Term Name=""OptionalParameter"" Type=""Core.OptionalParameterType"" AppliesTo=""Parameter"">
+  <Term Name=""OptionalParameter"" Type=""Core.OptionalParameterType"" AppliesTo=""Parameter"" Nullable=""false"">
     <Annotation Term=""Core.Description"" String=""Supplying a value for the action or function parameter is optional."" />
     <Annotation Term=""Core.LongDescription"" String=""All parameters marked as optional must come after any parameters not marked as optional. The binding parameter must not be marked as optional."" />
   </Term>
@@ -349,8 +386,32 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
     <Annotation Term=""Core.Description"" String=""Action or function is available"" />
     <Annotation Term=""Core.LongDescription"" String=""The annotation value will usually be an expression, e.g. using properties of the binding parameter type for instance-dependent availability, or using properties of a singleton for global availability. The static value `null` means that availability cannot be determined upfront and is instead expressed as an operation advertisement."" />
   </Term>
+  <Term Name=""RequiresExplicitBinding"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""Action Function"">
+    <Annotation Term=""Core.Description"" String=""This bound action or function is only available on model elements annotated with the ExplicitOperationBindings term."" />
+  </Term>
+  <Term Name=""ExplicitOperationBindings"" Type=""Collection(Core.QualifiedBoundOperationName)"">
+    <Annotation Term=""Core.Description"" String=""The qualified names of explicitly bound operations that are supported on the target model element. These operations are in addition to any operations not annotated with RequiresExplicitBinding that are bound to the type of the target model element."" />
+  </Term>
+  <Term Name=""SymbolicName"" Type=""Core.SimpleIdentifier"" Nullable=""false"">
+    <Annotation Term=""Core.Description"" String=""A symbolic name for a model element"" />
+  </Term>
+  <Term Name=""GeometryFeature"" Type=""Core.GeometryFeatureType"">
+    <Annotation Term=""Core.Description"" String=""A [Feature Object](https://datatracker.ietf.org/doc/html/rfc7946#section-3.2) represents a spatially bounded thing"" />
+  </Term>
+  <Term Name=""AnyStructure"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""EntityType ComplexType"" Nullable=""false"">
+    <Annotation Term=""Core.Description"" String=""Instances of a type are annotated with this tag if they have no common structure in a given response payload"" />
+    <Annotation Term=""Core.LongDescription"" String=""&#xA;&#x9;&#x9;&#x9;&#x9;The select-list of a context URL MUST be `(@Core.AnyStructure)` if it would otherwise be empty,&#xA;&#x9;&#x9;&#x9;&#x9;but this instance annotation SHOULD be omitted from the response value.&#xA;&#x9;&#x9;&#x9;"" />
+  </Term>
+  <Term Name=""IsDelta"" Type=""Core.Tag"" DefaultValue=""true"" AppliesTo=""ReturnType Parameter"" Nullable=""false"">
+    <Annotation Term=""Core.Description"" String=""The annotated Action or Function Parameter or Return Type is represented as a Delta payload"" />
+    <Annotation Term=""Core.LongDescription"" String=""&#xA;&#x9;&#x9;&#x9;&#x9;The parameter or result is represented as a delta payload, which may include deleted entries as well as changes to related&#xA;&#x9;&#x9;&#x9;&#x9;entities and relationships, according to the format-specific delta representation.&#xA;&#x9;&#x9;&#x9;"" />
+  </Term>
 </Schema>";
+#endregion
 
+        [Fact]
+        public void TestBaseCoreVocabularyModel()
+        {
             var s = coreVocModel.FindDeclaredTerm("Org.OData.Core.V1.OptimisticConcurrency");
             Assert.NotNull(s);
             Assert.Equal("Org.OData.Core.V1", s.Namespace);
@@ -378,6 +439,23 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
             Assert.NotNull(isLanguageDependentType);
             Assert.Equal(EdmPrimitiveTypeKind.Boolean, isLanguageDependentType.UnderlyingType.PrimitiveKind);
 
+            var requiresExplicitBindingTerm = coreVocModel.FindTerm("Org.OData.Core.V1.RequiresExplicitBinding");
+            Assert.NotNull(requiresExplicitBindingTerm);
+            var requiresExplicitBindingType = requiresExplicitBindingTerm.Type.Definition as IEdmTypeDefinition;
+            Assert.NotNull(requiresExplicitBindingType);
+            Assert.Equal(EdmPrimitiveTypeKind.Boolean, requiresExplicitBindingType.UnderlyingType.PrimitiveKind);
+
+            var explicitOperationBindingsTerm = coreVocModel.FindTerm("Org.OData.Core.V1.ExplicitOperationBindings");
+            Assert.NotNull(explicitOperationBindingsTerm);
+            var explicitOperationBindingsType = explicitOperationBindingsTerm.Type.Definition;
+            Assert.NotNull(explicitOperationBindingsType);
+            Assert.Equal("Collection(Org.OData.Core.V1.QualifiedBoundOperationName)", explicitOperationBindingsType.FullTypeName());
+            Assert.Equal(EdmTypeKind.Collection, explicitOperationBindingsType.TypeKind);
+
+            var qualifiedBoundOperationNameType = coreVocModel.FindType("Org.OData.Core.V1.QualifiedBoundOperationName");
+            Assert.NotNull(qualifiedBoundOperationNameType);
+            Assert.Equal(qualifiedBoundOperationNameType, explicitOperationBindingsType.AsElementType());
+
             StringWriter sw = new StringWriter();
             XmlWriterSettings settings = new XmlWriterSettings();
             settings.Indent = true;
@@ -387,11 +465,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
             XmlWriter xw = XmlWriter.Create(sw, settings);
             coreVocModel.TryWriteSchema(xw, out errors);
             xw.Flush();
-#if NETCOREAPP1_1
-            xw.Dispose();
-#else
             xw.Close();
-#endif
             string output = sw.ToString();
             Assert.False(errors.Any(), "No Errors");
             Assert.Equal(expectedText, output);
@@ -459,19 +533,21 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
         }
 
         [Theory]
+        [InlineData("ExplicitOperationBindings", "Collection(Org.OData.Core.V1.QualifiedBoundOperationName)", null)]
+        [InlineData("RequiresExplicitBinding", "Org.OData.Core.V1.Tag", "Action Function")]
         [InlineData("OperationAvailable", "Edm.Boolean", "Action Function")]
         [InlineData("OptionalParameter", "Org.OData.Core.V1.OptionalParameterType", "Parameter")]
         [InlineData("AlternateKeys", "Collection(Org.OData.Core.V1.AlternateKey)", "EntityType EntitySet NavigationProperty")]
         [InlineData("PositionalInsert", "Org.OData.Core.V1.Tag", "Property NavigationProperty EntitySet")]
-        [InlineData("Ordered", "Org.OData.Core.V1.Tag", "Property NavigationProperty EntitySet ReturnType")]
+        [InlineData("Ordered", "Org.OData.Core.V1.Tag", "Property NavigationProperty EntitySet ReturnType Term")]
         [InlineData("MayImplement", "Collection(Org.OData.Core.V1.QualifiedTypeName)", null)]
         [InlineData("AutoExpandReferences", "Org.OData.Core.V1.Tag", "NavigationProperty")]
-        [InlineData("AutoExpand", "Org.OData.Core.V1.Tag", "NavigationProperty Property")]
+        [InlineData("AutoExpand", "Org.OData.Core.V1.Tag", "EntityType NavigationProperty Property")]
         [InlineData("AdditionalProperties", "Org.OData.Core.V1.Tag", "EntityType ComplexType")]
         [InlineData("OptimisticConcurrency", "Collection(Edm.PropertyPath)", "EntitySet")]
         [InlineData("IsMediaType", "Org.OData.Core.V1.Tag", "Property Term")]
-        [InlineData("MediaType", "Edm.String", "Property")]
-        [InlineData("AcceptableMediaTypes", "Collection(Edm.String)", "EntityType Property")]
+        [InlineData("MediaType", "Edm.String", "EntityType Property Term TypeDefinition Parameter ReturnType")]
+        [InlineData("AcceptableMediaTypes", "Collection(Edm.String)", "EntityType Property Term TypeDefinition Parameter ReturnType")]
         [InlineData("IsURL", "Org.OData.Core.V1.Tag", "Property Term")]
         [InlineData("ComputedDefaultValue", "Org.OData.Core.V1.Tag", "Property")]
         [InlineData("Computed", "Org.OData.Core.V1.Tag", "Property")]
@@ -492,6 +568,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
         [InlineData("SchemaVersion", "Edm.String", "Schema Reference")]
         [InlineData("ODataVersions", "Edm.String", "EntityContainer")]
         [InlineData("Example", "Org.OData.Core.V1.ExampleValue", "EntityType ComplexType TypeDefinition Term Property NavigationProperty Parameter ReturnType")]
+        [InlineData("IsDelta","Org.OData.Core.V1.Tag","ReturnType Parameter")]
         public void TestCoreVocabularyTermType(string termName, string typeName, string appliesTo)
         {
             var termType = this.coreVocModel.FindDeclaredTerm("Org.OData.Core.V1." + termName);
@@ -510,6 +587,7 @@ namespace Microsoft.OData.Edm.Tests.Vocabularies
         }
 
         [Theory]
+        [InlineData("QualifiedBoundOperationName", "Edm.String")]
         [InlineData("MessageSeverity", "Edm.String")]
         [InlineData("Tag", "Edm.Boolean")]
         [InlineData("QualifiedTermName", "Edm.String")]

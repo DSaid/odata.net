@@ -17,7 +17,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
     using Microsoft.Test.Taupo.OData.Atom;
     using Microsoft.Test.Taupo.OData.Common;
     using Microsoft.Test.Taupo.OData.Json;
-    using Microsoft.Test.Taupo.OData.JsonLight;
+    using Microsoft.Test.Taupo.OData.Json;
     using Microsoft.Test.Taupo.OData.Writer.Tests.Common;
     using Microsoft.Test.Taupo.OData.Writer.Tests.Json;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -84,7 +84,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
         //// TODO: Add in-stream error tests
 
         /// <summary>
-        /// Creates an empty model so that the JSON lite serializer won't complain.
+        /// Creates an empty model so that the JSON serializer won't complain.
         /// </summary>
         /// <param name="entitySet">An entity set in the generated model.</param>
         private EdmModel CreateErrorTestModel(out EdmEntitySet entitySet)
@@ -110,7 +110,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     Code = string.Empty, Message = string.Empty, InnerError = (InnerError)null, ExpectedException = (ExpectedException) null
                 },
                 new {
-                    Error = new ODataAnnotatedError { Error = new ODataError() { ErrorCode = "code1" } },
+                    Error = new ODataAnnotatedError { Error = new ODataError() { Code = "code1" } },
                     Code = "code1", Message = string.Empty, InnerError = (InnerError)null, ExpectedException = (ExpectedException) null
                 },
                 new {
@@ -126,11 +126,11 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     Code = string.Empty, Message = string.Empty, InnerError = new InnerError { Message = "some inner error" }, ExpectedException = (ExpectedException) null
                 },
                 new {
-                    Error = new ODataAnnotatedError { Error = new ODataError() { ErrorCode = "code42", Message = "message text", InnerError = new ODataInnerError { Message = "some inner error" } } },
+                    Error = new ODataAnnotatedError { Error = new ODataError() { Code = "code42", Message = "message text", InnerError = new ODataInnerError { Message = "some inner error" } } },
                     Code = "code42", Message = "message text", InnerError = (InnerError)null, ExpectedException = (ExpectedException) null
                 },
                 new {
-                    Error = new ODataAnnotatedError { Error = new ODataError() { ErrorCode = "code42", Message = "message text", InnerError = new ODataInnerError { Message = "some inner error" } }, IncludeDebugInformation = true },
+                    Error = new ODataAnnotatedError { Error = new ODataError() { Code = "code42", Message = "message text", InnerError = new ODataInnerError { Message = "some inner error" } }, IncludeDebugInformation = true },
                     Code = "code42", Message = "message text", InnerError = new InnerError { Message = "some inner error" }, ExpectedException = (ExpectedException) null
                 },
                 new {
@@ -138,7 +138,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     {
                         Error = new ODataError()
                         {
-                            ErrorCode = "code42",
+                            Code = "code42",
                             Message = "message text",
                             InnerError = new ODataInnerError
                             {
@@ -164,7 +164,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     {
                         Error = new ODataError()
                         {
-                            ErrorCode = "code42",
+                            Code = "code42",
                             Message = "message text",
                             InnerError = new ODataInnerError
                             {
@@ -210,7 +210,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     ExpectedException = (ExpectedException) null
                 },
                 new {
-                    Error = new ODataAnnotatedError { Error = new ODataError() { ErrorCode = "code42", Message = "message text", InnerError = new ODataInnerError(new Exception("some inner error")) }, IncludeDebugInformation = true },
+                    Error = new ODataAnnotatedError { Error = new ODataError() { Code = "code42", Message = "message text", InnerError = new ODataInnerError(new Exception("some inner error")) }, IncludeDebugInformation = true },
                     Code = "code42", Message = "message text", InnerError = new InnerError { Message = "some inner error", TypeName = "System.Exception" }, ExpectedException = (ExpectedException) null
                 },
                 new {
@@ -218,7 +218,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     {
                         Error = new ODataError()
                         {
-                            ErrorCode = "code42",
+                            Code = "code42",
                             Message = "message text",
                             InnerError = new ODataInnerError(
                                 new Exception("some inner error", new Exception("nested inner error", new Exception("nested nested inner error"))))
@@ -250,7 +250,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     {
                         Error = new ODataError()
                         {
-                            ErrorCode = "code42",
+                            Code = "code42",
                             Message = "message text",
                             InnerError = new ODataInnerError
                             {
@@ -315,14 +315,14 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                            {
                                return new JsonWriterTestExpectedResults(this.Settings.ExpectedResultSettings)
                                {
-                                   Json = ExpectedJsonLightErrorPayload(tc.Code, tc.Message, tc.InnerError),
+                                   Json = ExpectedJsonErrorPayload(tc.Code, tc.Message, tc.InnerError),
                                    FragmentExtractor = (result) => { JsonUtils.TrimSurroundingWhitespaces(result); return result; },
                                };
                            }
                        }
                        else
                        {
-                           throw new ODataTestException("Expected results are only implemented for ATOM and JSON lite.");
+                           throw new ODataTestException("Expected results are only implemented for ATOM and JSON.");
                        }
                    });
            });
@@ -395,32 +395,32 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
 
 
         /// <summary>
-        /// Returns the expected JSON Lite payload for an error.
+        /// Returns the expected JSON payload for an error.
         /// </summary>
         /// <param name="code">The code of the error.</param>
         /// <param name="message">The error message.</param>
         /// <param name="innerError">The inner error (if null, don't write anything).</param>
-        /// <returns>The expected JSON Lite payload for an error.</returns>
-        private static string ExpectedJsonLightErrorPayload(string code, string message, InnerError innerError)
+        /// <returns>The expected JSON payload for an error.</returns>
+        private static string ExpectedJsonErrorPayload(string code, string message, InnerError innerError)
         {
             return string.Join(
                 "$(NL)",
                 "{",
-                "$(Indent)\"" + JsonLightConstants.ODataErrorPropertyName + "\":{",
+                "$(Indent)\"" + JsonConstants.ODataErrorPropertyName + "\":{",
                 "$(Indent)$(Indent)\"" + JsonConstants.ODataErrorCodeName + "\":\"" + code + "\",\"",
                 JsonConstants.ODataErrorMessageName + "\":\"" + message + "\"",
-                ExpectedJsonLightInnerErrorPayload(innerError, 0),
+                ExpectedJsonInnerErrorPayload(innerError, 0),
                 "$(Indent)}",
                 "}");
         }
 
         /// <summary>
-        /// Returns the expected JSON Lite payload for an inner error payload.
+        /// Returns the expected JSON payload for an inner error payload.
         /// </summary>
-        /// <param name="innerError">The inner error to create the JSON Lite payload for.</param>
+        /// <param name="innerError">The inner error to create the JSON payload for.</param>
         /// <param name="depth">The depth of the inner error (starting with 0).</param>
-        /// <returns>The expected JSON Lite payload for the <paramref name="innerError"/> payload.</returns>
-        private static string ExpectedJsonLightInnerErrorPayload(InnerError innerError, int depth)
+        /// <returns>The expected JSON payload for the <paramref name="innerError"/> payload.</returns>
+        private static string ExpectedJsonInnerErrorPayload(InnerError innerError, int depth)
         {
             if (innerError == null)
             {
@@ -444,7 +444,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     JsonConstants.ODataErrorInnerErrorMessageName + "\":\"" + (innerError.Message ?? string.Empty) + "\",\"" +
                     JsonConstants.ODataErrorInnerErrorTypeNameName + "\":\"" + (innerError.TypeName ?? string.Empty) + "\",\"" +
                     JsonConstants.ODataErrorInnerErrorStackTraceName + "\":\"" + (innerError.StackTrace ?? string.Empty) + "\"" +
-                    ExpectedJsonLightInnerErrorPayload(innerError.NestedError, depth + 1),
+                    ExpectedJsonInnerErrorPayload(innerError.NestedError, depth + 1),
                 "$(Indent)$(Indent)" + prefix + "}");
             return innerErrorString;
         }

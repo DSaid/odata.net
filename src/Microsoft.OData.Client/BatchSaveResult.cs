@@ -230,12 +230,12 @@ namespace Microsoft.OData.Client
         /// </summary>
         /// <param name="entityDescriptor">entity descriptor whose response is getting materialized.</param>
         /// <param name="responseInfo">information about the response to be materialized.</param>
-        /// <returns>an instance of MaterializeAtom, that can be used to materialize the response.</returns>
+        /// <returns>an instance of ObjectMaterializer, that can be used to materialize the response.</returns>
         /// <remarks>
         /// This can only be called from inside the HandleBatchResponse or during enumeration of the responses.
         /// This is used when processing responses for update operations.
         /// </remarks>
-        protected override MaterializeAtom GetMaterializer(EntityDescriptor entityDescriptor, ResponseInfo responseInfo)
+        protected override ObjectMaterializer GetMaterializer(EntityDescriptor entityDescriptor, ResponseInfo responseInfo)
         {
             // check if the batch stream is empty or not
             Debug.Assert(this.currentOperationResponse != null, "There must be an active operation response for this method to work correctly.");
@@ -248,12 +248,13 @@ namespace Microsoft.OData.Client
                 entityDescriptor.Entity.GetType(),
                 /*projection*/ null,
                 /*normalizerRewrites*/ null);
-            return new MaterializeAtom(
+            return new ObjectMaterializer(
                 responseInfo,
                 queryComponents,
                 /*projectionPlan*/ null,
                 this.currentOperationResponse.CreateResponseMessage(),
-                ODataPayloadKind.Resource);
+                ODataPayloadKind.Resource,
+                base.MaterializerCache);
         }
 
         /// <summary>
@@ -682,13 +683,14 @@ namespace Microsoft.OData.Client
                                     {
                                         DataServiceRequest query = this.Queries[queryCount];
                                         ResponseInfo responseInfo = this.RequestInfo.GetDeserializationInfo(null /*mergeOption*/);
-                                        MaterializeAtom materializer = DataServiceRequest.Materialize(
+                                        ObjectMaterializer materializer = DataServiceRequest.Materialize(
                                             responseInfo,
                                             query.QueryComponents(this.RequestInfo.Model),
                                             null,
                                             this.currentOperationResponse.Headers.GetHeader(XmlConstants.HttpContentType),
                                             this.currentOperationResponse.CreateResponseMessage(),
-                                            query.PayloadKind);
+                                            query.PayloadKind,
+                                            base.MaterializerCache);
                                         qresponse = QueryOperationResponse.GetInstance(query.ElementType, this.currentOperationResponse.Headers, query, materializer);
                                     }
                                 }
@@ -714,11 +716,11 @@ namespace Microsoft.OData.Client
 
                                         if (this.RequestInfo.IgnoreResourceNotFoundException && this.currentOperationResponse.StatusCode == HttpStatusCode.NotFound)
                                         {
-                                            qresponse = QueryOperationResponse.GetInstance(query.ElementType, this.currentOperationResponse.Headers, query, MaterializeAtom.EmptyResults);
+                                            qresponse = QueryOperationResponse.GetInstance(query.ElementType, this.currentOperationResponse.Headers, query, ObjectMaterializer.EmptyResults);
                                         }
                                         else
                                         {
-                                            qresponse = QueryOperationResponse.GetInstance(query.ElementType, this.currentOperationResponse.Headers, query, MaterializeAtom.EmptyResults);
+                                            qresponse = QueryOperationResponse.GetInstance(query.ElementType, this.currentOperationResponse.Headers, query, ObjectMaterializer.EmptyResults);
                                             qresponse.Error = exception;
                                         }
                                     }
@@ -788,7 +790,7 @@ namespace Microsoft.OData.Client
                         #endregion
 
                         default:
-                            // In ODataJsonLightBatchReader, readerState remains Initial after calling Read() the first time
+                            // In ODataJsonBatchReader, readerState remains Initial after calling Read() the first time
                             if (!this.useJsonBatch)
                             {
                                 Error.ThrowBatchExpectedResponse(InternalError.UnexpectedBatchState);

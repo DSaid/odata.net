@@ -58,7 +58,7 @@ namespace Microsoft.OData
         /// <param name="parsedSegments">The parsed segments in path, which is used to match binding path.</param>
         /// <param name="bindingPath">The output binding path of the navigation property which matches the <paramref name="parsedSegments"/></param>
         /// <returns>The navigation target which matches the binding path.</returns>
-        public static IEdmNavigationSource FindNavigationTarget(this IEdmNavigationSource navigationSource, IEdmNavigationProperty navigationProperty, Func<IEdmPathExpression, IList<ODataPathSegment>, bool> matchBindingPath, IList<ODataPathSegment> parsedSegments, out IEdmPathExpression bindingPath)
+        public static IEdmNavigationSource FindNavigationTarget(this IEdmNavigationSource navigationSource, IEdmNavigationProperty navigationProperty, Func<IEdmPathExpression, IReadOnlyList<ODataPathSegment>, bool> matchBindingPath, IReadOnlyList<ODataPathSegment> parsedSegments, out IEdmPathExpression bindingPath)
         {
             Debug.Assert(navigationSource != null);
             Debug.Assert(navigationProperty != null);
@@ -86,7 +86,14 @@ namespace Microsoft.OData
                 }
             }
 
-            return new UnknownEntitySet(navigationSource, navigationProperty);
+            if (typeof(IEdmUnknownEntitySet).IsAssignableFrom(navigationSource.GetType()))
+            {
+                return new UnknownEntitySet(navigationSource, navigationProperty);
+            }
+            else
+            {
+                return navigationSource.FindNavigationTarget(navigationProperty);
+            }
         }
 
         /// <summary>
@@ -111,6 +118,48 @@ namespace Microsoft.OData
             if (currentContainedEntitySet != null && currentContainedEntitySet.NavigationProperty.Type.TypeKind() == EdmTypeKind.Collection)
             {
                 return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Parse an enum integral value to enum member.
+        /// </summary>
+        /// <param name="enumType">edm enum type</param>
+        /// <param name="value">input integral value.</param>
+        /// <param name="enumMember">parsed result.</param>
+        /// <returns>true if parse succeeds, false if parse fails.</returns>
+        public static bool TryParse(this IEdmEnumType enumType, long value, out IEdmEnumMember enumMember)
+        {
+            enumMember = null;
+            foreach (IEdmEnumMember member in enumType.Members)
+            {
+                if (member.Value.Value == value)
+                {
+                    enumMember = member;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if the given member name exists in the enum type.
+        /// </summary>
+        /// <param name="enumType">The enum type.</param>
+        /// <param name="memberName">The member name to check.</param>
+        /// <param name="comparison">The comparison type to use for string comparison. Default is Ordinal.</param>
+        /// <returns>True if the member name exists in the enum type; otherwise, false.</returns>
+        public static bool ContainsMember(this IEdmEnumType enumType, string memberName, StringComparison comparison = StringComparison.Ordinal)
+        {
+            foreach (IEdmEnumMember member in enumType.Members)
+            {
+                if (string.Equals(member.Name, memberName, comparison))
+                {
+                    return true;
+                }
             }
 
             return false;

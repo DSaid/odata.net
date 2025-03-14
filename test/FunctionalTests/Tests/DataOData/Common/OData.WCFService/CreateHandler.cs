@@ -59,7 +59,7 @@ namespace Microsoft.Test.Taupo.OData.WCFService
             using (var messageReader = new ODataMessageReader(message, this.GetDefaultReaderSettings(), this.Model))
             {
                 var odataItemStack = new Stack<ODataItem>();
-                var entryReader = messageReader.CreateODataResourceReader(entitySet.EntityType());
+                var entryReader = messageReader.CreateODataResourceReader(entitySet.EntityType);
                 IEdmEntitySet currentTargetEntitySet = entitySet;
 
                 while (entryReader.Read())
@@ -78,7 +78,7 @@ namespace Microsoft.Test.Taupo.OData.WCFService
                                 var targetEntitySet = entry.GetAnnotation<TargetEntitySetAnnotation>().TargetEntitySet;
                                 object newInstance = this.DataContext.CreateNewItem(targetEntitySet);
 
-                                foreach (var property in entry.Properties)
+                                foreach (var property in entry.Properties.OfType<ODataProperty>())
                                 {
                                     DataContext.UpdatePropertyValue(newInstance, property.Name, property.Value);
                                 }
@@ -131,10 +131,10 @@ namespace Microsoft.Test.Taupo.OData.WCFService
                             {
                                 odataItemStack.Push(entryReader.Item);
                                 var navigationLink = (ODataNestedResourceInfo)entryReader.Item;
-                                var navigationProperty = (IEdmNavigationProperty)currentTargetEntitySet.EntityType().FindProperty(navigationLink.Name);
+                                var navigationProperty = (IEdmNavigationProperty)currentTargetEntitySet.EntityType.FindProperty(navigationLink.Name);
 
                                 // Current model implementation doesn't expose associations otherwise this would be much cleaner.
-                                currentTargetEntitySet = this.Model.EntityContainer.EntitySets().Single(s => s.EntityType() == navigationProperty.Type.Definition);
+                                currentTargetEntitySet = this.Model.EntityContainer.EntitySets().Single(s => s.EntityType == navigationProperty.Type.Definition);
                             }
 
                             break;

@@ -125,7 +125,8 @@ namespace Microsoft.OData.MultipartMixed
             // then dispose the batch writer (since we are now writing the operation content) and set the corresponding state.
             await this.RawOutputContext.FlushBuffersAsync()
                 .ConfigureAwait(false);
-            this.DisposeBatchWriterAndSetContentStreamRequestedState();
+            await this.DisposeBatchWriterAndSetContentStreamRequestedStateAsync()
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -144,7 +145,8 @@ namespace Microsoft.OData.MultipartMixed
         public override Task StreamDisposedAsync()
         {
             return TaskUtils.GetTaskForSynchronousOperation(
-                () => this.StreamDisposed());
+                thisParam => thisParam.StreamDisposed(),
+                this);
         }
 
         /// <summary>
@@ -751,6 +753,18 @@ namespace Microsoft.OData.MultipartMixed
                     this.CurrentOperationResponseMessage = null;
                 }
             }
+        }
+
+        /// <summary>
+        /// Asynchronously disposes the batch writer and set the 'OperationStreamRequested' batch writer state;
+        /// called after the flush operation(s) have completed.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        private async Task DisposeBatchWriterAndSetContentStreamRequestedStateAsync()
+        {
+            await this.RawOutputContext.CloseWriterAsync().ConfigureAwait(false);
+
+            this.SetState(BatchWriterState.OperationStreamRequested);
         }
     }
 }

@@ -23,11 +23,11 @@ For more information about OData, please refer to the following resources:
 
 ## 2. Project structure
 
-The project currently has a  [master](https://github.com/OData/odata.net/tree/master) branch and three archived branches: [maintenance-6.x](https://github.com/OData/odata.net/tree/maintenance-6.x), [maintenance-5.x](https://github.com/OData/odata.net/tree/maintenance-5.x), and [maintenance-wcf-dataservice-v4](https://github.com/OData/odata.net/tree/maintenance-wcf-dataservice-v4).
+The project currently has a  [main](https://github.com/OData/odata.net/tree/main) branch and three archived branches: [maintenance-6.x](https://github.com/OData/odata.net/tree/maintenance-6.x), [maintenance-5.x](https://github.com/OData/odata.net/tree/maintenance-5.x), and [maintenance-wcf-dataservice-v4](https://github.com/OData/odata.net/tree/maintenance-wcf-dataservice-v4).
 
-**master branch:**
+**main branch:**
 
-The master branch is the active development branch for ODataV4 7.x. It produces libraries targeting .NET 4.5 as well as [.NET Standard 1.1 and 2.0](https://docs.microsoft.com/en-us/dotnet/articles/standard/library). The branch builds with Visual Studio 2019.
+The **main** branch is the active development branch for ODataV4 7.x. It produces libraries targeting .NET 4.5 as well as [.NET Standard 1.1 and 2.0](https://docs.microsoft.com/en-us/dotnet/articles/standard/library). The branch builds with Visual Studio 2019.
 
 For each profile above, it has the following libraries:
 
@@ -37,6 +37,10 @@ For each profile above, it has the following libraries:
 - [OData Client for .NET](http://www.nuget.org/packages/Microsoft.OData.Client) (namespace `Microsoft.OData.Client`): The client library is built on top of ODataLib and EdmLib and provides LINQ-enabled client APIs for issuing OData queries and constructing and consuming OData JSON payloads.
 
 For these libraries, we accept [issue reports](https://github.com/OData/odata.net/issues) and welcome contributions through [pull requests](https://github.com/OData/odata.net/pulls).
+
+**dev-8.x branch:**
+
+The `dev-8.x` branch is the active development branch for ODataV4 8.x.
 
 **maintenance-6.x branch:** (maintenance mode)
 
@@ -113,7 +117,9 @@ You can query the latest nightly NuGet packages using this query: [MAGIC OData q
 
 ### 3.5 Official Release
 
-The release of the component binaries is carried out regularly through [Nuget](http://www.nuget.org/).
+The release of the component binaries is carried out regularly through [Nuget](http://www.nuget.org/). A new version is released every 2 months. A new [milestone](https://github.com/OData/odata.net/milestones) item will be created after each release. It will correspond to the work that is expected to be included in the next release. Any work that has been completed by the due date for the milestone will be shipped regardless of if the entire milestone is completed. Work that is not completed by the due date will be moved to another milestone. 
+
+Details on the release process are found [here](./docs/release.md)
 
 ### 3.6 Performance benchmarks
 
@@ -161,12 +167,6 @@ The easiest way to run the perf benchmarks is to use the [Microsoft.Crank](https
     crank --config benchmarks.yml --scenario Components --profile local
     ```
 
-- Run benchmarks for end-to-end scenarios against a local OData service:
-    
-    ```text
-    crank --config benchmarks.yml --scenario Service --profile local
-    ```
-
 - Run only ODataReader tests:
 
     ```text
@@ -184,10 +184,10 @@ The easiest way to run the perf benchmarks is to use the [Microsoft.Crank](https
     crank --config benchmarks.yml --scenario UriParser --profile local
     ```
 
-- Run tests that compare serialization performance of ODataWriter and System.Text.Json
+- Run tests that compare different writer implementations and configurations
 
     ```text
-    crank --config benchmarks.yml --scenario SerializerBaselines --profile local
+    crank --config benchmarks.yml --scenario SerializationComparisons --profile local
     ```
 
 #### Run benchmarks on remote dedicated agents
@@ -222,16 +222,58 @@ To run benchmarks against the official repo instead of your local repo, pass
 the `base=true` variable to the command, e.g.:
 
 ```text
-crank --config benchmarks.yml --scenario Service --profile local --variable base=true
+crank --config benchmarks.yml --scenario ODataWriter --profile local --variable base=true
 ```
 
-This will cause the crank agent to clone the official repo and run the tests against the `master` branch.
+This will cause the crank agent to clone the official repo and run the tests against the `main` branch.
 
 You can specify a different branch, commit or tag using the `baseBranch` variable:
 
 ```text
-crank --config benchmarks.yml --scenario Service --profile local --variable base=true --variable baseBranch=v7.6.4
+crank --config benchmarks.yml --scenario ODataWriter --profile local --variable base=true --variable baseBranch=v7.6.4
 ```
+
+#### Run load tests
+
+Besides benchmarks, we also have some load tests which measure request round-trips from a client to a server.
+These can be used to evaluate how OData libraries behave when handling multiple concurrent requests on the same server.
+
+We have tests that evaluate different writer implementations, serializing a simple static collection response
+on each request:
+
+```text
+crank --config loadtests.yml --config lab-windows --scenario SerializationComparisons --application.options.counterProviders System.Runtime --variable writer=ODataMessageWriter
+```
+
+This scenario allows you to choose which writer implementation is used to process the response as well. It also allows you to configure different aspects of the requests, e.g. number of connections, max requests per second, etc.
+
+For more information about these tests, [read this doc](test/PerformanceTests/SerializationComparisonsTests/README.md).
+
+#### Collecting traces
+
+Crank can collect and download native trace files from the benchmarked application that you can analyze in specialized tools using the `--[job].collect true` option, where `[job]` is the name of a job defined in the `.yml` config file.
+
+On Windows, `--[job].collect true` option will collect traces using [PerfView](https://github.com/Microsoft/perfview) download an `.etl` trace file that you can you can also analyze using PerfView.
+
+For example, the `loadtest.yml` config defines an `application` job which refers to the server handling the requests. We can collect traces from the server as follows:
+
+```
+crank --config loadtests.yml --config lab-windows --scenario SerializationComparisons --variable writer=ODataMessageWriter --application.collect true
+```
+
+#### Comparing benchmarks
+
+You can use the [ResultsComparer](./tools/perf/ResultsComparer) tool to compare benchmark results.
+
+Example:
+
+```cmd
+cd tools/perf/ResultsComparer/src/ResultsComparer
+
+dotnet run -- --base=BenchmarkBefore.json --diff=BenchmarkAfter.json --threshold 1%
+```
+
+Learn more about the benchmark results comparer [here](./tools/perf/ResultsComparer/README.md).
 
 ## 4. Documentation
 
@@ -241,9 +283,13 @@ Please visit the [ODataLib docs](https://docs.microsoft.com/en-us/odata/) on doc
 
 ### 5.1 Contribution
 
-There are many ways for you to contribute to OData .NET. The easiest way is to participate in discussion of features and issues. You can also contribute by sending pull requests of features or bug fixes to us. Contribution to the documentations is also highly welcomed. Please refer to the [CONTRIBUTING.md](https://github.com/OData/odata.net/blob/master/.github/CONTRIBUTING.md) for more details.
+There are many ways for you to contribute to OData .NET. The easiest way is to participate in discussion of features and issues. You can also contribute by sending pull requests of features or bug fixes to us. Contribution to the documentations is also highly welcomed. Please refer to the [CONTRIBUTING.md](https://github.com/OData/odata.net/blob/main/.github/CONTRIBUTING.md) for more details.
 
-### 5.2 Support
+### 5.2 Reporting Security Issues
+
+Security issues and bugs should be reported privately, via email, to the Microsoft Security Response Center (MSRC) <secure@microsoft.com>. You should receive a response within 24 hours. If for some reason you do not, please follow up via email to ensure we received your original message. Further information, including the MSRC PGP key, can be found in the [Security TechCenter](https://www.microsoft.com/msrc/faqs-report-an-issue). You can also find these instructions in this repo's [SECURITY.md](./SECURITY.md).
+
+### 5.3 Support
 
 - Issues: Report issues on [Github issues](https://github.com/OData/odata.net/issues).
 - Questions: Ask questions on [Stack Overflow](http://stackoverflow.com/questions/ask?tags=odata).

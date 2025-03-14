@@ -154,20 +154,10 @@ namespace Microsoft.OData.Client
 
             var requestMessage = requestInfo.CreateRequestMessage(requestMessageArgs);
 
-            if (requestInfo.Credentials != null)
-            {
-                requestMessage.Credentials = requestInfo.Credentials;
-            }
-
             if (requestInfo.Timeout != 0)
             {
                 requestMessage.Timeout = requestInfo.Timeout;
                
-            }
-
-            if (requestInfo.ReadWriteTimeout != 0)
-            {
-                requestMessage.ReadWriteTimeout = requestInfo.ReadWriteTimeout;
             }
 
             return new TopLevelRequestMessageWrapper(requestMessage, requestInfo, requestMessageArgs.Descriptor);
@@ -354,7 +344,7 @@ namespace Microsoft.OData.Client
         /// FireSendingRequest2 event.
         /// </summary>
         /// <param name="descriptor">Descriptor for which this request is getting generated.</param>
-        internal void FireSendingRequest2(Descriptor descriptor)
+        internal void FireSendingRequest2(Descriptor descriptor, bool isBulkUpdate = false)
         {
 #if DEBUG
             Debug.Assert(!this.fireSendingRequest2MethodCalled, "!this.fireSendingRequest2MethodCalled");
@@ -383,7 +373,7 @@ namespace Microsoft.OData.Client
 
                 try
                 {
-                    this.requestInfo.FireSendingRequest2(new SendingRequest2EventArgs(this.requestMessage, descriptor, this.IsBatchPartRequest));
+                    this.requestInfo.FireSendingRequest2(new SendingRequest2EventArgs(this.requestMessage, descriptor, this.IsBatchPartRequest, isBulkUpdate));
                 }
                 finally
                 {

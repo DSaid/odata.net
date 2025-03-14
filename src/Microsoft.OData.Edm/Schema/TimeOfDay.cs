@@ -254,6 +254,26 @@ namespace Microsoft.OData.Edm
         }
 
         /// <summary>
+        /// Convert TimeOfDay to .Net TimeOnly
+        /// </summary>
+        /// <param name="time">TimeOfDay Value</param>
+        /// <returns>TimeOnly Value which represent the TimeOfDay</returns>
+        public static implicit operator TimeOnly(TimeOfDay time)
+        {
+            return TimeOnly.FromTimeSpan(time.timeSpan);
+        }
+
+        /// <summary>
+        /// Convert .Net Clr TimeOnly to TimeOfDay
+        /// </summary>
+        /// <param name="timeOnly">TimeOnly Value</param>
+        /// <returns>TimeOfDay Value from TimeOnly</returns>
+        public static implicit operator TimeOfDay(TimeOnly timeOnly)
+        {
+            return new TimeOfDay(timeOnly.Ticks);
+        }
+
+        /// <summary>
         /// Compares the value of this instance to a specified TimeOfDay value
         /// and returns an bool that indicates whether this instance is same as the specified TimeOfDay value.
         /// </summary>
@@ -296,11 +316,7 @@ namespace Microsoft.OData.Edm
         /// <returns>string value of timeofday</returns>
         public override string ToString()
         {
-#if ORCAS
-            return this.timeSpan.ToString();
-#else
             return this.timeSpan.ToString(@"hh\:mm\:ss\.fffffff", CultureInfo.InvariantCulture);
-#endif
         }
 
         /// <summary>
@@ -391,12 +407,7 @@ namespace Microsoft.OData.Edm
         public static bool TryParse(string text, IFormatProvider provider, out TimeOfDay result)
         {
             TimeSpan time;
-            bool b;
-#if ORCAS
-            b = TimeSpan.TryParse(text, out time);
-#else
-            b = TimeSpan.TryParse(text, provider, out time);
-#endif
+            bool b = TimeSpan.TryParse(text, provider, out time);
             if (b && time.Ticks >= MinTickValue && time.Ticks <= MaxTickValue)
             {
                 result = new TimeOfDay(time.Ticks);

@@ -12,6 +12,7 @@ namespace Microsoft.OData.Client
     using System.Linq;
     using System.Net;
     using Microsoft.OData;
+    using Microsoft.OData.Client.Materialization;
 
     /// <summary>Non-generic placeholder for generic implementation</summary>
     public abstract class DataServiceRequest
@@ -59,14 +60,16 @@ namespace Microsoft.OData.Client
         /// <param name="contentType">contentType</param>
         /// <param name="message">the message</param>
         /// <param name="expectedPayloadKind">expected payload kind.</param>
-        /// <returns>atom materializer</returns>
-        internal static MaterializeAtom Materialize(
+        /// <param name="materializerCache">Cache used to store temporary metadata used for materialization of OData items.</param>
+        /// <returns>object materializer</returns>
+        internal static ObjectMaterializer Materialize(
             ResponseInfo responseInfo,
             QueryComponents queryComponents,
             ProjectionPlan plan,
             string contentType,
             IODataResponseMessage message,
-            ODataPayloadKind expectedPayloadKind)
+            ODataPayloadKind expectedPayloadKind,
+            MaterializerCache materializerCache)
         {
             Debug.Assert(queryComponents != null, "querycomponents");
             Debug.Assert(message != null, "message");
@@ -74,10 +77,10 @@ namespace Microsoft.OData.Client
             // If there is no content (For e.g. /Customers(1)/BestFriend is null), we need to return empty results.
             if (message.StatusCode == (int)HttpStatusCode.NoContent || String.IsNullOrEmpty(contentType))
             {
-                return MaterializeAtom.EmptyResults;
+                return ObjectMaterializer.EmptyResults;
             }
 
-            return new MaterializeAtom(responseInfo, queryComponents, plan, message, expectedPayloadKind);
+            return new ObjectMaterializer(responseInfo, queryComponents, plan, message, expectedPayloadKind, materializerCache);
         }
 
         /// <summary>
@@ -123,7 +126,7 @@ namespace Microsoft.OData.Client
                 serviceEx = serviceEx ?? previousInnerException as DataServiceClientException;
                 if (context.IgnoreResourceNotFoundException && serviceEx != null && serviceEx.StatusCode == (int)HttpStatusCode.NotFound)
                 {
-                    QueryOperationResponse qor = new QueryOperationResponse<TElement>(ex.Response.HeaderCollection, ex.Response.Query, MaterializeAtom.EmptyResults);
+                    QueryOperationResponse qor = new QueryOperationResponse<TElement>(ex.Response.HeaderCollection, ex.Response.Query, ObjectMaterializer.EmptyResults);
                     qor.StatusCode = (int)HttpStatusCode.NotFound;
                     return (IEnumerable<TElement>)qor;
                 }
@@ -159,7 +162,7 @@ namespace Microsoft.OData.Client
             {
                 if (result != null)
                 {
-                    QueryOperationResponse operationResponse = result.GetResponse<TElement>(MaterializeAtom.EmptyResults);
+                    QueryOperationResponse operationResponse = result.GetResponse<TElement>(ObjectMaterializer.EmptyResults);
 
                     if (operationResponse != null)
                     {
@@ -232,7 +235,7 @@ namespace Microsoft.OData.Client
             catch (InvalidOperationException ex)
             {
                 QueryOperationResponse operationResponse;
-                operationResponse = queryResult.GetResponse<TElement>(MaterializeAtom.EmptyResults);
+                operationResponse = queryResult.GetResponse<TElement>(ObjectMaterializer.EmptyResults);
                 if (operationResponse != null)
                 {
                     operationResponse.Error = ex;

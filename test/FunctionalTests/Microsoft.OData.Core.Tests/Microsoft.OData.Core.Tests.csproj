@@ -3,7 +3,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <AssemblyName>Microsoft.OData.Core.Tests</AssemblyName>
-    <TargetFrameworks>net452;netcoreapp1.1;netcoreapp2.1;netcoreapp3.1</TargetFrameworks>
+    <TargetFramework>net8.0</TargetFramework>
     <FileUpgradeFlags>40</FileUpgradeFlags>
     <OldToolsVersion>2.0</OldToolsVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -20,13 +20,13 @@
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
   
-  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp2.1' or '$(TargetFramework)' == 'netcoreapp3.1'">
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.6.0" />
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="System.Net.Http" Version="4.3.4" />
+    <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp1.1'">
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="15.9.2" />
-  </ItemGroup>
+  <Import Project="..\Build.props" />
 
   <ItemGroup>
     <PackageReference Include="xunit" Version="2.4.1" />
@@ -46,6 +46,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Remove="Json\GenerateContextUrlFromSlimUriWithDerivedTypeCastAndKeySegment.xml" />
+    <None Remove="Json\WriteContextWithDerivedTypeCastAndKeySegmentAsync.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="..\Tests\TestUtils\Common\Microsoft.Test.OData.Utils\Common\ExceptionUtilities.cs" Link="ExceptionUtilities.cs" />
     <Compile Include="..\Tests\TestUtils\Common\Microsoft.Test.OData.Utils\Metadata\EdmConstants.cs" Link="EdmConstants.cs" />
     <Compile Include="..\Tests\TestUtils\Common\Microsoft.Test.OData.Utils\Metadata\EdmToStockModelConverter.cs" Link="EdmToStockModelConverter.cs" />
@@ -56,6 +61,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Json\GenerateContextUrlFromSlimUriWithDerivedTypeCastAndKeySegment.xml" />
+    <EmbeddedResource Include="Json\WriteContextWithDerivedTypeCastAndKeySegmentAsync.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Microsoft.OData.Core\Microsoft.OData.Core.csproj" />
     <ProjectReference Include="..\..\..\src\Microsoft.OData.Edm\Microsoft.OData.Edm.csproj" />
     <ProjectReference Include="..\..\..\src\Microsoft.Spatial\Microsoft.Spatial.csproj" />
@@ -63,19 +73,7 @@
     <ProjectReference Include="..\Microsoft.OData.TestCommon\Microsoft.OData.TestCommon.csproj" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp2.1'">
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces">
-      <Version>5.0.0</Version>
-    </PackageReference>
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' == 'netcoreapp3.1'">
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces">
-      <Version>5.0.0</Version>
-    </PackageReference>
-  </ItemGroup>
-
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(TargetFramework)' == 'net452'">
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(TargetFramework)' == 'net48'">
     <Exec Command="&quot;$([System.Environment]::GetFolderPath(SpecialFolder.ProgramFilesX86))\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\sn.exe&quot; /Vr $(OutputPath)\Microsoft.OData.Core.dll" />
   </Target>
 </Project>

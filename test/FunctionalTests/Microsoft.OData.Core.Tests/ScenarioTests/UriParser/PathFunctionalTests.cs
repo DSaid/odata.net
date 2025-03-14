@@ -32,6 +32,22 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
         }
 
         [Fact]
+        public void SimpleKeySegmentWithDecimalKey()
+        {
+            var path = PathFunctionalTestsUtil.RunParsePath("Pet4Set(261210.08)");
+            path.LastSegment.ShouldBeSimpleKeySegment((decimal)261210.08);
+            Assert.Same(HardCodedTestModel.GetPet4Set(), path.NavigationSource());
+        }
+
+        [Fact]
+        public void SimpleKeySegmentWithDecimalKeyWithSuffix()
+        {
+            var path = PathFunctionalTestsUtil.RunParsePath("Pet4Set(261210.08m)");
+            path.LastSegment.ShouldBeSimpleKeySegment(261210.08m);
+            Assert.Same(HardCodedTestModel.GetPet4Set(), path.NavigationSource());
+        }
+
+        [Fact]
         public void SimpleSingleton()
         {
             var path = PathFunctionalTestsUtil.RunParsePath("Boss");
@@ -54,6 +70,13 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             var path = PathFunctionalTestsUtil.RunParsePath("People(7)/MyDog/$ref");
             path.LastSegment.ShouldBeNavigationPropertyLinkSegment(HardCodedTestModel.GetPersonMyDogNavProp());
             Assert.Same(HardCodedTestModel.GetDogsSet(), path.NavigationSource());
+        }
+
+        [Fact]
+        public void MultipleUnnamedKeysThrowsException()
+        {
+            Action parsePath = () => PathFunctionalTestsUtil.RunParsePath("People(7,8,9)");
+            parsePath.Throws<ODataException>(ODataErrorStrings.RequestUriProcessor_KeysMustBeNamed);
         }
 
         [Fact]
@@ -864,7 +887,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             PathFunctionalTestsUtil.RunParsePath("Pet4Set(102m)/").LastSegment.ShouldBeKeySegment(new KeyValuePair<string, object>("ID", 102M));
         }
 
-#if !NETCOREAPP3_1
+#if !NETCOREAPP
         [Fact]
         public void EntitySetKeyWithUnmatchType()
         {
@@ -927,7 +950,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             PathFunctionalTestsUtil.RunParsePath("GetPet3(id=1.0099999904632568)").LastSegment.ShouldBeOperationImportSegment(HardCodedTestModel.GetFunctionImportForGetPet3()).ShouldHaveParameterCount(1).ShouldHaveConstantParameter("id", 1.0099999904632568D);
         }
 
-#if !NETCOREAPP3_1
+#if !NETCOREAPP
         [Fact]
         public void FunctionParameterSinglePrecision()
         {
@@ -1192,7 +1215,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
 
             Assert.Equal("$42", path.FirstSegment.ShouldBeBatchReferenceSegment(HardCodedTestModel.GetDogType()).ContentId);
             path.LastSegment.ShouldBeNavigationPropertySegment(HardCodedTestModel.GetDogMyPeopleNavProp());
-            Assert.Same(HardCodedTestModel.GetDogsSet(), path.FirstSegment.TranslateWith(new DetermineNavigationSourceTranslator()));
+            Assert.Same(HardCodedTestModel.GetDogsSet(), path.FirstSegment.TranslateWith(DetermineNavigationSourceTranslator.Instance));
         }
 
         //[Fact(Skip = "#833: Throw exception when $value appears after a stream.")]

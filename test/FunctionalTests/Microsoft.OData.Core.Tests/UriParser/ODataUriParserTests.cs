@@ -13,6 +13,7 @@ using Microsoft.OData.Edm.Csdl;
 using Microsoft.OData.Edm.Vocabularies;
 using Microsoft.OData.Edm.Vocabularies.Community.V1;
 using Microsoft.OData.UriParser;
+using Microsoft.OData.UriParser.Validation;
 using Xunit;
 using ODataErrorStrings = Microsoft.OData.Strings;
 
@@ -390,6 +391,19 @@ namespace Microsoft.OData.Tests.UriParser
             Assert.Equal(2, pathSegment.Count);
             pathSegment.FirstSegment.ShouldBeEntitySetSegment(HardCodedTestModel.TestModel.FindDeclaredEntitySet("People"));
             pathSegment.LastSegment.ShouldBeKeySegment(new KeyValuePair<string, object>("SocialSN", "1"));
+        }
+
+        [Fact]
+        public void AlternateKeyUsingCoreVocabularyVersionShouldWork()
+        {
+            ODataPath pathSegment = new ODataUriParser(HardCodedTestModel.TestModel, new Uri("http://host"), new Uri("http://host/People(CoreSN = \'1\')"))
+            {
+                Resolver = new AlternateKeysODataUriResolver(HardCodedTestModel.TestModel)
+            }.ParsePath();
+
+            Assert.Equal(2, pathSegment.Count);
+            pathSegment.FirstSegment.ShouldBeEntitySetSegment(HardCodedTestModel.TestModel.FindDeclaredEntitySet("People"));
+            pathSegment.LastSegment.ShouldBeKeySegment(new KeyValuePair<string, object>("CoreSN", "1"));
         }
 
         [Fact]
@@ -899,6 +913,7 @@ namespace Microsoft.OData.Tests.UriParser
             // Act
             var parser = new ODataUriParser(model, new Uri("http://host"), new Uri("http://host/" + functionPath));
             var pathSegments = parser.ParsePath().ToList();
+            parser.Validate(ODataUrlValidationRuleSet.AllRules, out IEnumerable<ODataUrlValidationMessage> messages);
 
             // Assert
             Assert.Single(pathSegments);
@@ -924,11 +939,7 @@ namespace Microsoft.OData.Tests.UriParser
             Uri url = new Uri("http://host/Paintings?$compute=nonsense as");
             ODataUriParser parser = new ODataUriParser(HardCodedTestModel.TestModel, ServiceRoot, url);
             Action action = () => parser.ParseCompute();
-#if NETCOREAPP3_1
             action.Throws<ArgumentNullException>("Value cannot be null or empty. (Parameter 'alias')");
-#else
-             action.Throws<ArgumentNullException>("Value cannot be null or empty.\r\nParameter name: alias");
-#endif
         }
 
         [Fact]

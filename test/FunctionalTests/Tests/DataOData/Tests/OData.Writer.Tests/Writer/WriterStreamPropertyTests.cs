@@ -18,10 +18,10 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
     using Microsoft.Test.Taupo.OData.Atom;
     using Microsoft.Test.Taupo.OData.Common;
     using Microsoft.Test.Taupo.OData.Json.TextAnnotations;
-    using Microsoft.Test.Taupo.OData.JsonLight;
+    using Microsoft.Test.Taupo.OData.Json;
     using Microsoft.Test.Taupo.OData.Writer.Tests;
     using Microsoft.Test.Taupo.OData.Writer.Tests.Common;
-    using Microsoft.Test.Taupo.OData.Writer.Tests.JsonLight;
+    using Microsoft.Test.Taupo.OData.Writer.Tests.Json;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     // For comment out test cases, see github: https://github.com/OData/odata.net/issues/883
@@ -102,13 +102,13 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                                         (streamReferenceValue.ETag == null ? string.Empty : "m:etag=\"" + streamReferenceValue.ETag.Replace("\"", "&quot;") + "\" xmlns:m=\"" + TestAtomConstants.ODataMetadataNamespace + "\" ") +
                                         "xmlns=\"" + TestAtomConstants.AtomNamespace + "\" />"));
                         },
-                    GetExpectedJsonLightPayload = (testConfiguration) =>
+                    GetExpectedJsonPayload = (testConfiguration) =>
                         {
-                            return JsonLightWriterUtils.CombineProperties(
-                                (streamReferenceValue.EditLink == null ? string.Empty : ("\"" + JsonLightUtils.GetPropertyAnnotationName(propertyName, JsonLightConstants.ODataMediaEditLinkAnnotationName) + "\":\"" + absoluteEditLinkUri.OriginalString + "\"")),
-                                (streamReferenceValue.ReadLink == null ? string.Empty : ("\"" + JsonLightUtils.GetPropertyAnnotationName(propertyName, JsonLightConstants.ODataMediaReadLinkAnnotationName) + "\":\"" + absoluteReadLinkUri.OriginalString + "\"")),
-                                (streamReferenceValue.ContentType == null ? string.Empty : ("\"" + JsonLightUtils.GetPropertyAnnotationName(propertyName, JsonLightConstants.ODataMediaContentTypeAnnotationName) + "\":\"" + streamReferenceValue.ContentType + "\"")),
-                                (streamReferenceValue.ETag == null ? string.Empty : ("\"" + JsonLightUtils.GetPropertyAnnotationName(propertyName, JsonLightConstants.ODataMediaETagAnnotationName) + "\":\"" + streamReferenceValue.ETag.Replace("\"", "\\\"") + "\"")));
+                            return JsonWriterUtils.CombineProperties(
+                                (streamReferenceValue.EditLink == null ? string.Empty : ("\"" + JsonUtils.GetPropertyAnnotationName(propertyName, JsonConstants.ODataMediaEditLinkAnnotationName) + "\":\"" + absoluteEditLinkUri.OriginalString + "\"")),
+                                (streamReferenceValue.ReadLink == null ? string.Empty : ("\"" + JsonUtils.GetPropertyAnnotationName(propertyName, JsonConstants.ODataMediaReadLinkAnnotationName) + "\":\"" + absoluteReadLinkUri.OriginalString + "\"")),
+                                (streamReferenceValue.ContentType == null ? string.Empty : ("\"" + JsonUtils.GetPropertyAnnotationName(propertyName, JsonConstants.ODataMediaContentTypeAnnotationName) + "\":\"" + streamReferenceValue.ContentType + "\"")),
+                                (streamReferenceValue.ETag == null ? string.Empty : ("\"" + JsonUtils.GetPropertyAnnotationName(propertyName, JsonConstants.ODataMediaETagAnnotationName) + "\":\"" + streamReferenceValue.ETag.Replace("\"", "\\\"") + "\"")));
                         },
                 };
             });
@@ -151,7 +151,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                                     Json = string.Join(
                                         "$(NL)",
                                         "{",
-                                        testCase.GetExpectedJsonLightPayload(testConfiguration),
+                                        testCase.GetExpectedJsonPayload(testConfiguration),
                                         "}"),
                                     FragmentExtractor = result => result.RemoveAllAnnotations(true),
                                 };
@@ -208,7 +208,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
                     if (testConfiguration.IsRequest)
                     {
                         ODataResource payloadEntry = (ODataResource)testDescriptor.PayloadItems[0];
-                        ODataProperty firstStreamProperty = payloadEntry.Properties.Where(p => p.Value is ODataStreamReferenceValue).FirstOrDefault();
+                        ODataProperty firstStreamProperty = payloadEntry.Properties.OfType<ODataProperty>().Where(p => p.Value is ODataStreamReferenceValue).FirstOrDefault();
                         this.Assert.IsNotNull(firstStreamProperty, "firstStreamProperty != null");
 
                         testDescriptor = new PayloadWriterTestDescriptor<ODataItem>(testDescriptor)
@@ -234,7 +234,7 @@ namespace Microsoft.Test.Taupo.OData.Writer.Tests.Writer
         {
             public ODataProperty NamedStreamProperty { get; set; }
             public Func<WriterTestConfiguration, string> GetExpectedAtomPayload { get; set; }
-            public Func<WriterTestConfiguration, string> GetExpectedJsonLightPayload { get; set; }
+            public Func<WriterTestConfiguration, string> GetExpectedJsonPayload { get; set; }
         }
 
         [Ignore] // Remove Atom

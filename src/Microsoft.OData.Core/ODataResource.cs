@@ -69,7 +69,7 @@ namespace Microsoft.OData
         private ODataStreamReferenceValue mediaResource;
 
         /// <summary>The resource properties provided by the user or seen on the wire (never computed).</summary>
-        private IEnumerable<ODataProperty> properties;
+        private IEnumerable<ODataPropertyInfo> properties;
 
         /// <summary>The resource actions provided by the user or seen on the wire (never computed).</summary>
         private List<ODataAction> actions = new List<ODataAction>();
@@ -176,21 +176,33 @@ namespace Microsoft.OData
             get { return this.MetadataBuilder.GetFunctions(); }
         }
 
+        /// <summary>
+        /// Gets or sets whether to skip property verification. When set to false (default behaviour),
+        /// the properties collection will be verified to ensure it doesn't contain invalid values.
+        /// When set to true, it's the caller's responsibility to ensure the property values are valid
+        /// before setting the <see cref="Properties"/> property. This can be a useful optimization
+        /// in hot paths when you're sure property values are valid.
+        /// </summary>
+        public bool SkipPropertyVerification { get; set; }
+
         /// <summary>Gets or sets the resource properties.</summary>
         /// <returns>The resource properties.</returns>
         /// <remarks>
         /// Non-property content goes to annotations.
         /// </remarks>
-        public IEnumerable<ODataProperty> Properties
+        public IEnumerable<ODataPropertyInfo> Properties
         {
             get
             {
                 return this.MetadataBuilder.GetProperties(this.properties);
             }
-
             set
             {
-                VerifyProperties(value);
+                if (!this.SkipPropertyVerification)
+                {
+                    VerifyProperties(value);
+                }
+
                 this.properties = value;
             }
         }
@@ -333,7 +345,7 @@ namespace Microsoft.OData
         }
 
         /// <summary>Returns the entity properties that has been set directly and was not computed using the metadata builder.</summary>
-        internal IEnumerable<ODataProperty> NonComputedProperties
+        internal IEnumerable<ODataPropertyInfo> NonComputedProperties
         {
             get
             {
@@ -401,13 +413,18 @@ namespace Microsoft.OData
             }
         }
 
-        private static void VerifyProperties(IEnumerable<ODataProperty> properties)
+        private static void VerifyProperties(IEnumerable<ODataPropertyInfo> properties)
         {
             if (properties != null)
             {
                 ODataCollectionValue collection = null;
-                foreach (var property in properties)
+                foreach (ODataPropertyInfo propertyInfo in properties)
                 {
+                    if (propertyInfo is not ODataProperty property)
+                    {
+                        continue;
+                    }
+
                     if (property.Value is ODataResourceValue)
                     {
                         throw new ODataException(Strings.ODataResource_PropertyValueCannotBeODataResourceValue(property.Name));

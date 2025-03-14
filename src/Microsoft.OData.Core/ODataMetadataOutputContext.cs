@@ -14,6 +14,7 @@ using System.Xml;
 using Microsoft.OData.Metadata;
 using Microsoft.OData.Edm.Csdl;
 using Microsoft.OData.Edm.Validation;
+using Microsoft.OData.Edm;
 
 namespace Microsoft.OData
 {
@@ -29,7 +30,7 @@ namespace Microsoft.OData
         private XmlWriter xmlWriter;
 
         /// <summary>The asynchronous output stream if we're writing asynchronously.</summary>
-        private AsyncBufferedStream asynchronousOutputStream;
+        private Stream asynchronousOutputStream;
 
         /// <summary>
         /// Constructor.
@@ -54,7 +55,7 @@ namespace Microsoft.OData
                 }
                 else
                 {
-                    this.asynchronousOutputStream = new AsyncBufferedStream(this.messageOutputStream);
+                    this.asynchronousOutputStream = new BufferedStream(this.messageOutputStream, messageWriterSettings.BufferSize);
                     outputStream = this.asynchronousOutputStream;
                 }
 
@@ -99,7 +100,7 @@ namespace Microsoft.OData
             return TaskUtils.GetTaskForSynchronousOperationReturningTask(
                 () =>
                 {
-                    ODataMetadataWriterUtils.WriteError(this.xmlWriter, error, includeDebugInformation, this.MessageWriterSettings.MessageQuotas.MaxNestingDepth);
+                    ODataMetadataWriterUtils.WriteError(this.xmlWriter, error, includeDebugInformation, this.MessageWriterSettings);
                     return this.FlushAsync();
                 });
         }
@@ -109,16 +110,12 @@ namespace Microsoft.OData
         /// </summary>
         /// <returns>A task representing the asynchronous operation of writing the metadata document.</returns>
         /// <remarks>It is the responsibility of this method to flush the output before the task finishes.</remarks>
-        internal override Task WriteMetadataDocumentAsync()
+        internal override async Task WriteMetadataDocumentAsync()
         {
             this.AssertAsynchronous();
 
-            return TaskUtils.GetTaskForSynchronousOperationReturningTask(
-                () =>
-                {
-                    this.WriteMetadataDocumentImplementation();
-                    return this.FlushAsync();
-                });
+            await this.WriteMetadataDocumentImplementationAsync().ConfigureAwait(false);
+            await this.FlushAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -152,7 +149,7 @@ namespace Microsoft.OData
         {
             this.AssertSynchronous();
 
-            ODataMetadataWriterUtils.WriteError(this.xmlWriter, error, includeDebugInformation, this.MessageWriterSettings.MessageQuotas.MaxNestingDepth);
+            ODataMetadataWriterUtils.WriteError(this.xmlWriter, error, includeDebugInformation, this.MessageWriterSettings);
             this.Flush();
         }
 
@@ -175,6 +172,48 @@ namespace Microsoft.OData
         /// <param name="disposing">If 'true' this method is called from user code; if 'false' it is called by the runtime.</param>
         protected override void Dispose(bool disposing)
         {
+            if (disposing)
+            {
+                try
+                {
+                    if (this.xmlWriter != null)
+                    {
+                        // In the async case the underlying stream is the async buffered stream, so we have to flush that explicitly.
+                        if (this.asynchronousOutputStream != null)
+                        {
+                            this.xmlWriter.Flush();
+                            this.asynchronousOutputStream.Flush();
+                            this.asynchronousOutputStream.Dispose();
+                        }
+                        else
+                        {
+                            // XmlWriter.Flush will call the underlying Stream.Flush.
+                            this.xmlWriter.Flush();
+                        }
+
+                        // XmlWriter.Dispose calls XmlWriter.Close which writes missing end elements.
+                        // Thus we can't dispose the XmlWriter since that might end up writing more data into the stream right here
+                        // and thus callers would have no way to prevent us from writing synchronously into the underlying stream.
+                        // Also in case of in-stream error we intentionally want to not write the end elements to keep the payload invalid.
+                        // In the async case the underlying stream is the async buffered stream, so we have to flush that explicitly.
+
+                        // Dispose the message stream (note that we OWN this stream, so we always dispose it).
+                        this.messageOutputStream.Dispose();
+                    }
+                }
+                finally
+                {
+                    this.messageOutputStream = null;
+                    this.asynchronousOutputStream = null;
+                    this.xmlWriter = null;
+                }
+            }
+
+            base.Dispose(disposing);
+        }
+
+        protected override async ValueTask DisposeAsyncCore()
+        {
             try
             {
                 if (this.xmlWriter != null)
@@ -182,14 +221,14 @@ namespace Microsoft.OData
                     // In the async case the underlying stream is the async buffered stream, so we have to flush that explicitly.
                     if (this.asynchronousOutputStream != null)
                     {
-                        this.xmlWriter.FlushAsync().Wait();
-                        this.asynchronousOutputStream.FlushAsync().Wait();
-                        this.asynchronousOutputStream.Dispose();
+                        await this.xmlWriter.FlushAsync().ConfigureAwait(false);
+                        await this.asynchronousOutputStream.FlushAsync().ConfigureAwait(false);
+                        await this.asynchronousOutputStream.DisposeAsync().ConfigureAwait(false);
                     }
                     else
                     {
                         // XmlWriter.Flush will call the underlying Stream.Flush.
-                        this.xmlWriter.Flush();
+                        await this.xmlWriter.FlushAsync().ConfigureAwait(false);
                     }
 
                     // XmlWriter.Dispose calls XmlWriter.Close which writes missing end elements.
@@ -199,7 +238,7 @@ namespace Microsoft.OData
                     // In the async case the underlying stream is the async buffered stream, so we have to flush that explicitly.
 
                     // Dispose the message stream (note that we OWN this stream, so we always dispose it).
-                    this.messageOutputStream.Dispose();
+                    await this.messageOutputStream.DisposeAsync().ConfigureAwait(false);
                 }
             }
             finally
@@ -209,13 +248,45 @@ namespace Microsoft.OData
                 this.xmlWriter = null;
             }
 
-            base.Dispose(disposing);
+            await base.DisposeAsyncCore().ConfigureAwait(false);
         }
 
         private void WriteMetadataDocumentImplementation()
         {
             IEnumerable<EdmError> errors;
-            if (!CsdlWriter.TryWriteCsdl(this.Model, this.xmlWriter, CsdlTarget.OData, out errors))
+
+            CsdlXmlWriterSettings writerSettings = new CsdlXmlWriterSettings();
+
+            if (this.MessageWriterSettings.LibraryCompatibility.HasFlag(ODataLibraryCompatibility.UseLegacyVariableCasing))
+            {
+                writerSettings.LibraryCompatibility |= EdmLibraryCompatibility.UseLegacyVariableCasing;
+            }
+
+            if (!CsdlWriter.TryWriteCsdl(this.Model, this.xmlWriter, CsdlTarget.OData, writerSettings, out errors))
+            {
+                Debug.Assert(errors != null, "errors != null");
+
+                StringBuilder builder = new StringBuilder();
+                foreach (EdmError error in errors)
+                {
+                    builder.AppendLine(error.ToString());
+                }
+
+                throw new ODataException(Strings.ODataMetadataOutputContext_ErrorWritingMetadata(builder.ToString()));
+            }
+        }
+
+        private async Task WriteMetadataDocumentImplementationAsync()
+        {
+            CsdlXmlWriterSettings writerSettings = new CsdlXmlWriterSettings();
+
+            if (this.MessageWriterSettings.LibraryCompatibility.HasFlag(ODataLibraryCompatibility.UseLegacyVariableCasing))
+            {
+                writerSettings.LibraryCompatibility |= EdmLibraryCompatibility.UseLegacyVariableCasing;
+            }
+
+            var (success, errors) = await CsdlWriter.TryWriteCsdlAsync(this.Model, this.xmlWriter, CsdlTarget.OData, writerSettings).ConfigureAwait(false);
+            if (!success)
             {
                 Debug.Assert(errors != null, "errors != null");
 

@@ -18,10 +18,10 @@ namespace Microsoft.OData.Tests.Json
     /// <summary>
     /// Unit tests for the JsonWriter class.
     /// </summary>
-    public class JsonWriterAsyncTests
+    public class JsonWriterAsyncTests : JsonWriterAsyncBaseTests
     {
         private StringBuilder builder;
-        private IJsonWriterAsync writer;
+        private IJsonWriter writer;
 
         public JsonWriterAsyncTests()
         {
@@ -153,7 +153,7 @@ namespace Microsoft.OData.Tests.Json
         public async Task WriteJsonObjectValueAsyncCallsInjectedPropertyAction()
         {
             var properties = new Dictionary<string, object> { { "Name", "Sue" } };
-            Func<IJsonWriterAsync, Task> injectPropertyDelegate = async (IJsonWriterAsync actionWriter) =>
+            Func<IJsonWriter, Task> injectPropertyDelegate = async (IJsonWriter actionWriter) =>
             {
                 await actionWriter.WriteNameAsync("Id");
                 await actionWriter.WriteValueAsync(7);
@@ -268,6 +268,24 @@ namespace Microsoft.OData.Tests.Json
         }
 
         [Fact]
+        public async Task WritePrimitiveValueAsyncDoubleNaN()
+        {
+            await this.VerifyWritePrimitiveValueAsync(double.NaN, "\"NaN\"");
+        }
+
+        [Fact]
+        public async Task WritePrimitiveValueAsyncDoublePositiveInfinity()
+        {
+            await this.VerifyWritePrimitiveValueAsync (double.PositiveInfinity, "\"INF\"");
+        }
+
+        [Fact]
+        public async Task WritePrimitiveValueAsyncDoubleNegativeInfinity()
+        {
+            await this.VerifyWritePrimitiveValueAsync(double.NegativeInfinity, "\"-INF\"");
+        }
+
+        [Fact]
         public async Task WritePrimitiveValueAsyncInt16()
         {
             await this.VerifyWritePrimitiveValueAsync((short)876, "876");
@@ -319,6 +337,12 @@ namespace Microsoft.OData.Tests.Json
         public async Task WritePrimitiveValueAsyncDateTimeOffset()
         {
             await this.VerifyWritePrimitiveValueAsync(new DateTimeOffset(1, 2, 3, 4, 5, 6, 7, new TimeSpan(1, 2, 0)), "\"0001-02-03T04:05:06.007+01:02\"");
+        }
+
+        [Fact]
+        public async Task WritePrimitiveValueAsyncDateTimeOffsetWithZeroOffsetWithZeroOffset()
+        {
+            await this.VerifyWritePrimitiveValueAsync(new DateTimeOffset(1, 2, 3, 4, 5, 6, 7, TimeSpan.Zero), "\"0001-02-03T04:05:06.007Z\"");
         }
 
         [Fact]
@@ -376,6 +400,28 @@ namespace Microsoft.OData.Tests.Json
                 (jsonWriter) => jsonWriter.WriteValueAsync("foo\tbar"));
         }
 
+
+        [Theory]
+        [InlineData("application/json", "🐂")]
+        [InlineData("text/html", "\"🐂\"")]
+        [InlineData("text/plain", "\"🐂\"")]
+        public async Task TextWriter_CorrectlyHandlesSurrogatePairsAsync(string contentType, string expectedOutput)
+        {
+            using MemoryStream stream = new MemoryStream();
+            IJsonWriter jsonWriter = CreateJsonWriter(stream, isIeee754Compatible: false, Encoding.UTF8);
+            var tw = await jsonWriter.StartTextWriterValueScopeAsync(contentType);
+            await tw.WriteAsync('\ud83d');
+            await tw.WriteAsync('\udc02');
+            await jsonWriter.EndTextWriterValueScopeAsync();
+            await jsonWriter.FlushAsync();
+
+            stream.Seek(0, SeekOrigin.Begin);
+
+            using StreamReader reader = new StreamReader(stream, encoding: Encoding.UTF8);
+            string rawOutput = reader.ReadToEnd();
+            Assert.Equal(expectedOutput, rawOutput);
+        }
+
         private async Task SetupJsonWriterRunTestAndVerifyRentAsync(Func<JsonWriter, Task> func)
         {
             var jsonWriter = new JsonWriter(new StringWriter(builder), isIeee754Compatible: true);
@@ -388,6 +434,11 @@ namespace Microsoft.OData.Tests.Json
             await func(jsonWriter);
 
             Assert.True(rentVerified);
+        }
+
+        protected override IJsonWriter CreateJsonWriter(Stream stream, bool isIeee754Compatible, Encoding encoding)
+        {
+            return new JsonWriter(new StreamWriter(stream, encoding), isIeee754Compatible);
         }
     }
 }

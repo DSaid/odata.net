@@ -26,10 +26,8 @@ namespace Microsoft.OData
         /// <summary>The writer to write to the underlying stream.</summary>
         private readonly TextWriter Writer;
 
-
         /// <summary>Trailing bytes from a previous write to be prepended to the next write.</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1825:Avoid zero-length array allocations.", Justification = "<Pending>")]
-        private byte[] trailingBytes = new byte[0];
+        private byte[] trailingBytes = Array.Empty<byte>();
 
         /// <summary>
         /// The wrapped buffer to help with streaming responses.
@@ -41,15 +39,13 @@ namespace Microsoft.OData
         /// </summary>
         private ICharArrayPool bufferPool;
 
-
         /// <summary>An empty byte[].</summary>
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1825:Avoid zero-length array allocations.", Justification = "<Pending>")]
-        private static byte[] emptyByteArray = new byte[0];
+        private byte[] emptyByteArray = Array.Empty<byte>();
 
         /// <summary>
         /// Constructor.
         /// </summary>
-        /// <param name="writer">A Textwriter for writing to the stream.</param>
+        /// <param name="writer">A TextWriter for writing to the stream.</param>
         public ODataBinaryStreamWriter(TextWriter writer)
         {
             Debug.Assert(writer != null, "Creating a binary stream writer for a null textWriter.");
@@ -60,7 +56,7 @@ namespace Microsoft.OData
         /// <summary>
         /// Constructor.
         /// </summary>
-        /// <param name="writer">A Textwriter for writing to the stream.</param>
+        /// <param name="writer">A TextWriter for writing to the stream.</param>
         /// <param name="streamingBuffer">A temporary buffer to use when converting binary values.</param>
         /// <param name="bufferPool">Array pool for renting a buffer.</param>
         public ODataBinaryStreamWriter(TextWriter writer, Ref<char[]> wrappedBuffer, ICharArrayPool bufferPool)
@@ -141,7 +137,7 @@ namespace Microsoft.OData
             Debug.Assert(this.wrappedBuffer != null, "this.wrappedBuffer != null");
 
             // if we have less than 3 bytes, store the bytes and continue
-            if (count + trailingBytes.Length < MinBytesPerWriteEvent)
+            if (count + this.trailingBytes.Length < MinBytesPerWriteEvent)
             {
                 this.trailingBytes = this.trailingBytes.Concat(bytes.Skip(offset).Take(count)).ToArray();
                 return;
@@ -160,7 +156,7 @@ namespace Microsoft.OData
             Debug.Assert(this.wrappedBuffer != null, "this.wrappedBuffer != null");
 
             // if we have less than 3 bytes, store the bytes and continue
-            if (count + trailingBytes.Length < MinBytesPerWriteEvent)
+            if (count + this.trailingBytes.Length < MinBytesPerWriteEvent)
             {
                 this.trailingBytes = this.trailingBytes.Concat(bytes.Skip(offset).Take(count)).ToArray();
                 return;
@@ -229,12 +225,24 @@ namespace Microsoft.OData
             // write any trailing bytes to stream
             if (disposing && this.trailingBytes != null && this.trailingBytes.Length > 0)
             {
-                this.Writer.Write(Convert.ToBase64String(trailingBytes, 0, trailingBytes.Length));
-                trailingBytes = null;
+                this.Writer.Write(Convert.ToBase64String(this.trailingBytes, 0, this.trailingBytes.Length));
+                this.trailingBytes = null;
             }
 
             this.Writer.Flush();
             base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            // write any trailing bytes to stream
+            if (this.trailingBytes != null && this.trailingBytes.Length > 0)
+            {
+                await this.Writer.WriteAsync(Convert.ToBase64String(this.trailingBytes, 0, this.trailingBytes.Length)).ConfigureAwait(false);
+                this.trailingBytes = null;
+            }
+
+            await this.Writer.FlushAsync().ConfigureAwait(false);
         }
 
         /// <summary>
@@ -254,12 +262,12 @@ namespace Microsoft.OData
             if (trailingBytesLength > 0)
             {
                 // convert the trailing bytes plus the first 3-trailingByteLength bytes of the new byte[]
-                prefixByteString = trailingBytes.Concat(bytes.Skip(offset).Take(numberOfBytesToPrefix)).ToArray();
+                prefixByteString = this.trailingBytes.Concat(bytes.Skip(offset).Take(numberOfBytesToPrefix)).ToArray();
             }
 
             // compute if there will be trailing bytes from this write
             int remainingBytes = (count - numberOfBytesToPrefix) % MinBytesPerWriteEvent;
-            trailingBytes = bytes.Skip(offset + count - remainingBytes).Take(remainingBytes).ToArray();
+            this.trailingBytes = bytes.Skip(offset + count - remainingBytes).Take(remainingBytes).ToArray();
 
             // TODO: Too much LINQ? Investigate a more performant way of achieving this
             byteArray = prefixByteString.Concat(bytes

@@ -201,7 +201,7 @@ namespace AstoriaUnitTests.Tests
                 "ID eq 0",
                 "length(length) eq 1",
                 "length('length') gt 1",
-                "cast(cast, 'Edm.Byte') lt 100",
+                "cast(cast, Edm.Byte) lt 100",
             };
             var contextType = typeof(TypedCustomDataContext<AllTypes>);
             TypedCustomDataContext<AmbiguousNameType>.ClearHandlers();
@@ -254,8 +254,8 @@ namespace AstoriaUnitTests.Tests
                 "NullableBoolType eq null",
                 "ByteType lt 100",
                 "NullableByteType lt 100",
-                "cast(NullableSingleType, 'Edm.Int32') eq null",
-                "cast(NullableSingleType, 'Edm.Single') eq null",
+                "cast(NullableSingleType, Edm.Int32) eq null",
+                "cast(NullableSingleType, Edm.Single) eq null",
                 "year(NullableDateTimeOffsetType) eq 2008",
                 "round(NullableDoubleType) eq 2008",
                 "round(NullableSingleType) eq 2008",
@@ -457,6 +457,7 @@ namespace AstoriaUnitTests.Tests
                     "startswith('abc', 'ab')",
                     "not startswith('abc', 'aab')",
                     "contains('abc','b')",
+                    "matchesPattern('abc','[a-z]b')",
                     "indexof('abc', 'b') ge 1",
                     "replace('foo','o','g') eq 'fgg'",
                     "substring('123', 1) eq '23'",
@@ -474,6 +475,7 @@ namespace AstoriaUnitTests.Tests
                     "startswith(" + customerNameProperty + ", 'C')",
                     "endswith(concat(" + customerNameProperty + ", 'b'), 'b')",
                     "contains(" + customerNameProperty + ",'C')",
+                    "matchesPattern(" + customerNameProperty + ",'^C')",
                     "trim(" + customerNameProperty + ") eq substring(" + customerNameProperty + ", 0)",
 
                     // DateTime functions.

@@ -19,7 +19,7 @@ namespace Microsoft.OData
     /// Base class for all output contexts, defines the interface
     /// to be implemented by the specific formats.
     /// </summary>
-    public abstract class ODataOutputContext : IDisposable
+    public abstract class ODataOutputContext : IDisposable, IAsyncDisposable
     {
         /// <summary>The format for this output context.</summary>
         private readonly ODataFormat format;
@@ -52,11 +52,6 @@ namespace Microsoft.OData
         private readonly IWriterValidator writerValidator;
 
         /// <summary>
-        /// The simplified options used in writing.
-        /// </summary>
-        private readonly ODataSimplifiedOptions odataSimplifiedOptions;
-
-        /// <summary>
         /// Constructor.
         /// </summary>
         /// <param name="format">The format for this output context.</param>
@@ -76,11 +71,10 @@ namespace Microsoft.OData
             this.synchronous = !messageInfo.IsAsync;
             this.model = messageInfo.Model ?? EdmCoreModel.Instance;
             this.payloadUriConverter = messageInfo.PayloadUriConverter;
-            this.container = messageInfo.Container;
+            this.container = messageInfo.ServiceProvider;
             this.edmTypeResolver = EdmTypeWriterResolver.Instance;
             this.payloadValueConverter = ODataPayloadValueConverter.GetPayloadValueConverter(this.container);
             this.writerValidator = messageWriterSettings.Validator;
-            this.odataSimplifiedOptions = ODataSimplifiedOptions.GetODataSimplifiedOptions(this.container, messageWriterSettings.Version);
         }
 
         /// <summary>
@@ -180,17 +174,6 @@ namespace Microsoft.OData
             get
             {
                 return this.writerValidator;
-            }
-        }
-
-        /// <summary>
-        /// The ODataSimplifiedOptions used in writing
-        /// </summary>
-        internal ODataSimplifiedOptions ODataSimplifiedOptions
-        {
-            get
-            {
-                return this.odataSimplifiedOptions;
             }
         }
 
@@ -684,6 +667,31 @@ namespace Microsoft.OData
         /// <param name="disposing">If 'true' this method is called from user code; if 'false' it is called by the runtime.</param>
         protected virtual void Dispose(bool disposing)
         {
+        }
+
+        /// <summary>
+        /// IAsyncDisposable.DisposeAsync() implementation to asynchronously cleanup unmanaged resources of the context.
+        /// </summary>
+        /// <returns>A task representing the asynchronous disposal of the context.</returns>
+        public async ValueTask DisposeAsync()
+        {
+            await this.DisposeAsyncCore().ConfigureAwait(false);
+
+            // Calling Dispose(disposing: false) releases unmanaged resources if any
+            // but does not perform synchronous I/O (e.g. does not call Flush())
+            // See: https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync#the-disposeasync-method
+            this.Dispose(false);
+
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Perform the actual cleanup work asynchronously.
+        /// </summary>
+        /// <returns>A task representing the asynchronous disposal of the context.</returns>
+        protected virtual ValueTask DisposeAsyncCore()
+        {
+            return default;
         }
 
         /// <summary>

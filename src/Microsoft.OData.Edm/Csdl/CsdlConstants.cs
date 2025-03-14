@@ -135,7 +135,7 @@ namespace Microsoft.OData.Edm.Csdl
         internal const string Element_FunctionImport = "FunctionImport";
         internal const string Element_FunctionReference = "FunctionReference";
         internal const string Element_If = "If";
-        internal const string Element_IsType = "IsType";
+        internal const string Element_IsOf = "IsOf";
         internal const string Element_Int = "Int";
         internal const string Element_Key = "Key";
         internal const string Element_LabeledElement = "LabeledElement";
@@ -180,6 +180,8 @@ namespace Microsoft.OData.Edm.Csdl
         internal const string Value_Ref = "Ref";
         internal const string Value_SridVariable = EdmConstants.Value_SridVariable;
         internal const string Value_ScaleVariable = EdmConstants.Value_ScaleVariable;
+        internal const string Value_SridVariable_Legacy = EdmConstants.Value_SridVariable_Legacy;
+        internal const string Value_ScaleVariable_Legacy = EdmConstants.Value_ScaleVariable_Legacy;
 
         internal const string TypeName_Untyped = "Edm.Untyped";
         internal const string TypeName_Untyped_Short = "Untyped";
@@ -205,7 +207,7 @@ namespace Microsoft.OData.Edm.Csdl
         internal const int Default_SpatialGeographySrid = 4326;
         internal const int Default_SpatialGeometrySrid = 0;
         internal const int Default_UnspecifiedSrid = Int32.MinValue;
-        internal const int Default_Scale = 0;
+        internal static readonly int? Default_Scale = null;
 
         internal const int Max_NameLength = 480;
         internal const int Max_NamespaceLength = 512;

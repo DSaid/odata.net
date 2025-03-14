@@ -208,7 +208,7 @@ namespace Microsoft.OData.Tests.UriParser.Binders
         // GeneratePropertyAccessQueryNodeForOpenTypes tests
 
         [Fact]
-        public void ShouldThrowNotImplementedIfTypeIsOpen()
+        public void ShouldSucceedIfTypeIsOpen()
         {
             const string OpenPropertyName = "Style";
             var token = new EndPathToken(OpenPropertyName, new RangeVariableToken("a"));
@@ -257,6 +257,40 @@ namespace Microsoft.OData.Tests.UriParser.Binders
                 token, parentNode);
 
             propertyNode.ShouldBeSingleValueOpenPropertyAccessQueryNode("Color");
+        }
+
+        [Fact]
+        public void ShouldThrowIfSingleValueNodeOfCollectionNavigationNodeIsUsedOutsideAggregation()
+        {
+            var state = new BindingState(this.configuration);
+            var metadataBinder = new MetadataBinder(state);
+            var endPathBinder = new EndPathBinder(metadataBinder.Bind, state);
+
+            var token = new EndPathToken("FastestOwner",
+                new EndPathToken("MyFriendsDogs", new RangeVariableToken("a")));
+            CollectionResourceNode entityCollectionNode = new EntitySetNode(HardCodedTestModel.GetPeopleSet());
+            state.RangeVariables.Push(new ResourceRangeVariable("a", HardCodedTestModel.GetPersonTypeReference(), entityCollectionNode));
+
+            Action bind = () => endPathBinder.BindEndPath(token);
+
+            bind.Throws<ODataException>(Strings.MetadataBinder_PropertyAccessSourceNotSingleValue("FastestOwner"));
+        }
+
+        [Fact]
+        public void ShouldThrowIfUnknownPropertyOfCollectionNavigationNodeIsUsed()
+        {
+            var state = new BindingState(this.configuration);
+            var metadataBinder = new MetadataBinder(state);
+            var endPathBinder = new EndPathBinder(metadataBinder.Bind, state);
+
+            var token = new EndPathToken("MissingProperty",
+                new EndPathToken("MyFriendsDogs", new RangeVariableToken("a")));
+            CollectionResourceNode entityCollectionNode = new EntitySetNode(HardCodedTestModel.GetPeopleSet());
+            state.RangeVariables.Push(new ResourceRangeVariable("a", HardCodedTestModel.GetPersonTypeReference(), entityCollectionNode));
+
+            Action bind = () => endPathBinder.BindEndPath(token);
+
+            bind.Throws<ODataException>(Strings.MetadataBinder_PropertyAccessSourceNotSingleValue("MissingProperty"));
         }
 
         /// <summary>

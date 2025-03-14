@@ -19,7 +19,7 @@ namespace Microsoft.Test.OData.Tests.Client.DisableAtomTests
     using Microsoft.Test.OData.Tests.Client.Common;
     using Xunit;
 
-    public class DisableAtomTests : ODataWCFServiceTestsBase<Microsoft.Test.OData.Services.TestServices.ODataWCFServiceReference.InMemoryEntities>
+    public class DisableAtomTests : ODataWCFServiceTestsBase<Microsoft.Test.OData.Services.TestServices.ODataWCFServiceReference.InMemoryEntities>, IDisposable
     {
         private const string NameSpacePrefix = "Microsoft.Test.OData.Services.ODataWCFService.";
 
@@ -352,8 +352,13 @@ namespace Microsoft.Test.OData.Tests.Client.DisableAtomTests
             {
                 var error = messageReader.ReadError();
                 Assert.Equal(typeof(Microsoft.OData.ODataError), error.GetType());
-                Assert.Equal("UnsupportedMediaType", error.ErrorCode);
+                Assert.Equal("UnsupportedMediaType", error.Code);
             }
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
         }
     }
 }

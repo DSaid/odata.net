@@ -97,7 +97,7 @@ namespace Microsoft.OData.MultipartMixed
             }
 
             ODataBatchOperationRequestMessage requestMessage = BuildOperationRequestMessage(
-                () => ODataBatchUtils.CreateBatchOperationReadStream(this.batchStream, headers, this),
+                () => ODataBatchUtils.CreateBatchOperationReadStream(this.batchStream, headers, this, this.InputContext.Synchronous),
                 httpMethod,
                 requestUri,
                 headers,
@@ -139,7 +139,7 @@ namespace Microsoft.OData.MultipartMixed
             // We don't have correlation of changeset boundary between request and response messages in
             // changesets, so use null value for groupId.
             ODataBatchOperationResponseMessage responseMessage = BuildOperationResponseMessage(
-                () => ODataBatchUtils.CreateBatchOperationReadStream(this.batchStream, headers, this),
+                () => ODataBatchUtils.CreateBatchOperationReadStream(this.batchStream, headers, this, this.InputContext.Synchronous),
                 statusCode,
                 headers,
                 this.currentContentId,
@@ -272,7 +272,7 @@ namespace Microsoft.OData.MultipartMixed
             // Since the uri can contain spaces, the only way to read the request url, is to
             // check for first space character and last space character and anything between
             // them.
-            int firstSpaceIndex = requestLine.IndexOf(' ');
+            int firstSpaceIndex = requestLine.IndexOf(' ', StringComparison.Ordinal);
 
             // Check whether there are enough characters after the first space for the 2nd and 3rd segments
             // (and a whitespace in between)
@@ -330,7 +330,7 @@ namespace Microsoft.OData.MultipartMixed
             // Since the http status code strings have spaces in them, we cannot use the same
             // logic. We need to check for the second space and anything after that is the error
             // message.
-            int firstSpaceIndex = responseLine.IndexOf(' ');
+            int firstSpaceIndex = responseLine.IndexOf(' ', StringComparison.Ordinal);
             if (firstSpaceIndex <= 0 || responseLine.Length - 3 <= firstSpaceIndex)
             {
                 // only 1 segment or empty first segment or not enough left for 2nd and 3rd segments

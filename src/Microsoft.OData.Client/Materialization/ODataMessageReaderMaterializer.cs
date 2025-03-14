@@ -32,11 +32,11 @@ namespace Microsoft.OData.Client.Materialization
         /// Initializes a new instance of the <see cref="ODataMessageReaderMaterializer"/> class.
         /// </summary>
         /// <param name="reader">The reader.</param>
-        /// <param name="context">The materializer context.</param>
+        /// <param name="materializerContext">The materializer context.</param>
         /// <param name="expectedType">The expected type.</param>
         /// <param name="singleResult">The single result.</param>
-        public ODataMessageReaderMaterializer(ODataMessageReader reader, IODataMaterializerContext context, Type expectedType, bool? singleResult)
-            : base(context, expectedType)
+        public ODataMessageReaderMaterializer(ODataMessageReader reader, IODataMaterializerContext materializerContext, Type expectedType, bool? singleResult)
+            : base(materializerContext, expectedType)
         {
             this.messageReader = reader;
             this.SingleResult = singleResult;
@@ -46,6 +46,14 @@ namespace Microsoft.OData.Client.Materialization
         /// Feed being materialized; possibly null.
         /// </summary>
         internal sealed override ODataResourceSet CurrentFeed
+        {
+            get { return null; }
+        }
+
+        /// <summary>
+        /// Delta resource set being materialized; possibly null.
+        /// </summary>
+        internal sealed override ODataDeltaResourceSet CurrentDeltaFeed
         {
             get { return null; }
         }
@@ -72,7 +80,7 @@ namespace Microsoft.OData.Client.Materialization
         /// <returns>The count value returned from the server</returns>
         internal override long CountValue
         {
-            get { throw new InvalidOperationException(ClientStrings.MaterializeFromAtom_CountNotPresent); }
+            get { throw new InvalidOperationException(ClientStrings.MaterializeFromObject_CountNotPresent); }
         }
 
         /// <summary>

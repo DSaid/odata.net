@@ -91,7 +91,7 @@ namespace Microsoft.Test.OData.Services.ODataWCFService
             // we ignore the NavigationPropertySegment since we already handle it as ExpandedNavigationSelectItem
             if (propertySegment != null || openPropertySegment != null)
             {
-                List<ODataProperty> properties = this.ProjectedEntryWrapper.Resource.Properties == null ? new List<ODataProperty>() : this.ProjectedEntryWrapper.Resource.Properties.ToList();
+                List<ODataPropertyInfo> properties = this.ProjectedEntryWrapper.Resource.Properties == null ? new List<ODataPropertyInfo>() : this.ProjectedEntryWrapper.Resource.Properties.ToList();
                 List<ODataNestedResourceInfoWrapper> nestedResourceInfos = this.ProjectedEntryWrapper.NestedResourceInfoWrappers == null ? new List<ODataNestedResourceInfoWrapper>() : this.ProjectedEntryWrapper.NestedResourceInfoWrappers.ToList();
 
                 string propertyName = (propertySegment != null) ? propertySegment.Property.Name : openPropertySegment.Identifier;
@@ -134,7 +134,7 @@ namespace Microsoft.Test.OData.Services.ODataWCFService
 
             if (this.ExpandedChildElement is IEnumerable)
             {
-                var entityInstanceType = EdmClrTypeUtils.GetInstanceType(item.NavigationSource.EntityType().FullName());
+                var entityInstanceType = EdmClrTypeUtils.GetInstanceType(item.NavigationSource.EntityType.FullName());
                 Expression resultExpression = (this.ExpandedChildElement as IEnumerable).AsQueryable().Expression;
 
                 if (item.FilterOption != null)
@@ -179,7 +179,7 @@ namespace Microsoft.Test.OData.Services.ODataWCFService
 
             if (this.ExpandedChildElement is IEnumerable)
             {
-                var entityInstanceType = EdmClrTypeUtils.GetInstanceType(item.NavigationSource.EntityType().FullName());
+                var entityInstanceType = EdmClrTypeUtils.GetInstanceType(item.NavigationSource.EntityType.FullName());
                 Expression resultExpression = (this.ExpandedChildElement as IEnumerable).AsQueryable().Expression;
 
                 if (item.FilterOption != null)

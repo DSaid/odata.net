@@ -7,6 +7,7 @@
 namespace Microsoft.OData
 {
     using System.Collections.Generic;
+    using Microsoft.Extensions.ObjectPool;
     using Microsoft.OData.Edm;
     using Microsoft.OData.Metadata;
 
@@ -21,6 +22,11 @@ namespace Microsoft.OData
         private readonly ODataMessageWriterSettings settings;
 
         /// <summary>
+        /// Object pool that stores instances of the DuplicatePropertyNameChecker.
+        /// </summary>
+        private ObjectPool<DuplicatePropertyNameChecker> duplicatePropertyNameCheckerObjectPool;
+
+        /// <summary>
         /// Creates a WriterValidator instance and binds it to settings.
         /// </summary>
         /// <param name="settings">The ODataMessageWriterSettings instance to bind to.</param>
@@ -29,15 +35,38 @@ namespace Microsoft.OData
             this.settings = settings;
         }
 
-        /// <summary>
-        /// Creates a DuplicatePropertyNameChecker instance.
-        /// </summary>
-        /// <returns>The created instance.</returns>
-        public IDuplicatePropertyNameChecker CreateDuplicatePropertyNameChecker()
+        /// <inheritdoc/>
+        public IDuplicatePropertyNameChecker GetDuplicatePropertyNameChecker()
         {
-            return settings.ThrowOnDuplicatePropertyNames
-                   ? (IDuplicatePropertyNameChecker)new DuplicatePropertyNameChecker()
-                   : (IDuplicatePropertyNameChecker)new NullDuplicatePropertyNameChecker();
+            IDuplicatePropertyNameChecker duplicatePropertyNameChecker;
+
+            if (settings.ThrowOnDuplicatePropertyNames)
+            {
+                if (this.duplicatePropertyNameCheckerObjectPool == null)
+                {
+                    DefaultObjectPoolProvider poolProvider = new DefaultObjectPoolProvider { MaximumRetained = 8 };
+                    this.duplicatePropertyNameCheckerObjectPool = poolProvider.Create<DuplicatePropertyNameChecker>();
+                }
+
+                duplicatePropertyNameChecker = this.duplicatePropertyNameCheckerObjectPool.Get();
+                duplicatePropertyNameChecker.Reset();
+            }
+            else
+            {
+                duplicatePropertyNameChecker = NullDuplicatePropertyNameChecker.Instance;
+            }
+
+            return duplicatePropertyNameChecker;
+        }
+
+        /// <inheritdoc/>
+        public void ReturnDuplicatePropertyNameChecker(IDuplicatePropertyNameChecker duplicatePropertyNameChecker)
+        {
+            // We only return the DuplicatePropertyNameChecker to the object pool and ignore the NullDuplicatePropertyNameChecker.
+            if (duplicatePropertyNameChecker is DuplicatePropertyNameChecker duplicateChecker)
+            {
+                this.duplicatePropertyNameCheckerObjectPool.Return(duplicateChecker);
+            }
         }
 
         /// <summary>
@@ -100,8 +129,12 @@ namespace Microsoft.OData
         {
             if (settings.ThrowIfTypeConflictsWithMetadata)
             {
+                if (typeReferenceFromMetadata.IsUntyped())
+                {
+                    ; // do nothing here
+                }
                 // Make sure the types are the same
-                if (typeReferenceFromValue.IsODataPrimitiveTypeKind())
+                else if (typeReferenceFromValue.IsODataPrimitiveTypeKind())
                 {
                     // Primitive types must match exactly except for nullability
                     ValidationUtils.ValidateMetadataPrimitiveType(typeReferenceFromMetadata,
@@ -121,14 +154,17 @@ namespace Microsoft.OData
                 }
                 else if (typeReferenceFromMetadata.IsCollection())
                 {
-                    // Collection types must match exactly.
-                    if (!typeReferenceFromMetadata.Definition.IsElementTypeEquivalentTo(
-                            typeReferenceFromValue.Definition))
+                    if (!typeReferenceFromMetadata.AsCollection().ElementType().IsUntyped())
                     {
-                        throw new ODataException(
-                            Strings.ValidationUtils_IncompatibleType(
-                                typeReferenceFromValue.FullName(),
-                                typeReferenceFromMetadata.FullName()));
+                        // Collection types must match exactly.
+                        if (!typeReferenceFromMetadata.Definition.IsElementTypeEquivalentTo(
+                                typeReferenceFromValue.Definition))
+                        {
+                            throw new ODataException(
+                                Strings.ValidationUtils_IncompatibleType(
+                                    typeReferenceFromValue.FullName(),
+                                    typeReferenceFromMetadata.FullName()));
+                        }
                     }
                 }
                 else
@@ -198,8 +234,8 @@ namespace Microsoft.OData
             }
 
             if (isTopLevel
-                && (this.settings.LibraryCompatibility >= ODataLibraryCompatibility.Version7
-                || this.settings.Version >= ODataVersion.V401))
+                && (!(this.settings.LibraryCompatibility.HasFlag(ODataLibraryCompatibility.DoNotThrowExceptionForTopLevelNullProperty)
+                || this.settings.Version >= ODataVersion.V401)))
             {
                 // From the spec:
                 // 11.2.3 Requesting Individual Properties

@@ -17,7 +17,7 @@ using Xunit;
 
 namespace Microsoft.OData.Edm.Tests.Vocabularies
 {
-    public class CommunityVocabularyTests
+    public partial class CommunityVocabularyTests
     {
         private readonly IEdmModel model = CommunityVocabularyModel.Instance;
 

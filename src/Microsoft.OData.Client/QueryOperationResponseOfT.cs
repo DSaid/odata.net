@@ -31,7 +31,7 @@ namespace Microsoft.OData.Client
         /// <param name="headers">HTTP headers</param>
         /// <param name="query">original query</param>
         /// <param name="results">retrieved objects</param>
-        internal QueryOperationResponse(HeaderCollection headers, DataServiceRequest query, MaterializeAtom results)
+        internal QueryOperationResponse(HeaderCollection headers, DataServiceRequest query, ObjectMaterializer results)
             : base(headers, query, results)
         {
         }
@@ -39,17 +39,6 @@ namespace Microsoft.OData.Client
         #endregion Constructors
 
         #region Public properties
-
-        /// <summary>The server result set count value from a query, if the query has requested the value.</summary>
-        /// <returns>The return value can be either zero or a positive value equal to the number of entities in the set on the server.</returns>
-        [Obsolete("Please use Count")]
-        public override long TotalCount
-        {
-            get
-            {
-                return Count;
-            }
-        }
 
         /// <summary>The server result set count value from a query, if the query has requested the value.</summary>
         /// <returns>The return value can be either zero or a positive value equal to the number of entities in the set on the server.</returns>
@@ -63,7 +52,7 @@ namespace Microsoft.OData.Client
                 }
                 else
                 {
-                    throw new InvalidOperationException(Strings.MaterializeFromAtom_CountNotPresent);
+                    throw new InvalidOperationException(Strings.MaterializeFromObject_CountNotPresent);
                 }
             }
         }

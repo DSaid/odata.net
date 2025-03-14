@@ -765,6 +765,10 @@ namespace EdmLibTests.FunctionalUtilities
             {
                 get { return type; }
             }
+            public IEdmEntityType EntityType
+            {
+                get { return this.Type.AsElementType() as IEdmEntityType; }
+            }
 
             public bool IncludeInServiceDocument
             {
@@ -830,6 +834,12 @@ namespace EdmLibTests.FunctionalUtilities
         }
 
         public IEdmVocabularyAnnotatable Target
+        {
+            get;
+            set;
+        }
+
+        public bool UsesDefault
         {
             get;
             set;

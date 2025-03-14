@@ -10,17 +10,15 @@ namespace Microsoft.OData.Json
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using Microsoft.OData.JsonLight;
     using Microsoft.Spatial;
     using Microsoft.OData.Edm;
-    using Microsoft.OData.Metadata;
     using ODataErrorStrings = Microsoft.OData.Strings;
     using System.Threading.Tasks;
 
     #endregion Namespaces
 
     /// <summary>
-    /// Helper methods used by the OData reader for the Verbose JSON and JSON Light formats.
+    /// Helper methods used by the OData reader for Json formats.
     /// </summary>
     internal static class ODataJsonReaderCoreUtils
     {
@@ -104,7 +102,7 @@ namespace Microsoft.OData.Json
             Debug.Assert(jsonReader != null, "jsonReader != null");
             Debug.Assert(inputContext != null, "inputContext != null");
 
-            if (jsonReader.NodeType == JsonNodeType.PrimitiveValue && jsonReader.Value == null)
+            if (jsonReader.NodeType == JsonNodeType.PrimitiveValue && jsonReader.GetValue() == null)
             {
                 jsonReader.ReadNext();
 
@@ -135,7 +133,7 @@ namespace Microsoft.OData.Json
         /// <param name="propertyName">The name of the property whose value is being read, if applicable (used for error reporting).</param>
         /// <returns>An instance of the spatial type.</returns>
         internal static async Task<ISpatial> ReadSpatialValueAsync(
-            IJsonReaderAsync jsonReader,
+            IJsonReader jsonReader,
             bool insideJsonObjectValue,
             ODataInputContext inputContext,
             IEdmPrimitiveTypeReference expectedValueTypeReference,
@@ -194,8 +192,8 @@ namespace Microsoft.OData.Json
         /// <returns>true if a null value could be read from the JSON reader; otherwise false.</returns>
         /// <remarks>If the method detects a null value it will read it (position the reader after the null value);
         /// otherwise the reader does not move.</remarks>
-        internal static async Task<bool> TryReadNullValueAsync(
-            IJsonReaderAsync jsonReader,
+        internal static async ValueTask<bool> TryReadNullValueAsync(
+            IJsonReader jsonReader,
             ODataInputContext inputContext,
             IEdmTypeReference expectedTypeReference,
             bool validateNullValue,
@@ -334,9 +332,9 @@ namespace Microsoft.OData.Json
         /// <param name="inputContext">The input context with all the settings.</param>
         /// <param name="recursionDepth">The recursion depth to start with.</param>
         /// <returns>A task that represents the asynchronous read operation.
-		/// The value of the TResult parameter contains an instance of IDictionary containing the spatial value.</returns>
+        /// The value of the TResult parameter contains an instance of IDictionary containing the spatial value.</returns>
         private static async Task<Dictionary<string, object>> ReadObjectValueAsync(
-            IJsonReaderAsync jsonReader,
+            IJsonReader jsonReader,
             bool insideJsonObjectValue,
             ODataInputContext inputContext,
             int recursionDepth)
@@ -403,9 +401,9 @@ namespace Microsoft.OData.Json
         /// <param name="inputContext">The input context with all the settings.</param>
         /// <param name="recursionDepth">The recursion depth to start with.</param>
         /// <returns>A task that represents the asynchronous read operation.
-		/// The value of the TResult parameter contains a lit of JSON objects.</returns>
+        /// The value of the TResult parameter contains a lit of JSON objects.</returns>
         /// <returns>a list of json objects.</returns>
-        private static async Task<List<object>> ReadArrayValueAsync(IJsonReaderAsync jsonReader, ODataInputContext inputContext, int recursionDepth)
+        private static async Task<List<object>> ReadArrayValueAsync(IJsonReader jsonReader, ODataInputContext inputContext, int recursionDepth)
         {
             Debug.Assert(jsonReader != null, "jsonReader != null");
             Debug.Assert(jsonReader.NodeType == JsonNodeType.StartArray, "jsonReader.NodeType == JsonNodeType.StartArray");

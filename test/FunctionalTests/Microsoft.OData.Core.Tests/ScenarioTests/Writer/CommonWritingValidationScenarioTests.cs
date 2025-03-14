@@ -37,7 +37,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Writer
         }
 
         [Fact]
-        public void WriteEntryWithoutTypeNameWithMetadataOnWriterShouldWriteOnJsonLightFailOnOtherFormats()
+        public void WriteEntryWithoutTypeNameWithMetadataOnWriterShouldWriteOnJsonFailOnOtherFormats()
         {
             IEdmEntitySet entitySet = null;
             var model = CreatePersonModel(out entitySet);
@@ -45,7 +45,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Writer
             foreach (string contentType in new string[] { "application/json" })
             {
                 var messageWriter = CreateODataMessageWriter(model, contentType);
-                var odataWriter = messageWriter.CreateODataResourceWriter(null, entitySet.EntityType());
+                var odataWriter = messageWriter.CreateODataResourceWriter(null, entitySet.EntityType);
                 Action test = () =>
                 {
                     var entry = new ODataResource();
@@ -110,7 +110,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Writer
             foreach (string contentType in new string[] { "application/json" })
             {
                 var messageWriter = CreateODataMessageWriter(model, contentType);
-                var odataWriter = messageWriter.CreateODataResourceWriter(null, entitySet.EntityType());
+                var odataWriter = messageWriter.CreateODataResourceWriter(null, entitySet.EntityType);
                 Action test = () =>
                 {
                     var entry = new ODataResource()

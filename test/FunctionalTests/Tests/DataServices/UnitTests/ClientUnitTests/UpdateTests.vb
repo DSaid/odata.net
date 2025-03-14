@@ -12,6 +12,7 @@ Imports System.Collections.Generic
 Imports System.Data.Test.Astoria
 Imports System.IO
 Imports System.Net
+Imports System.Net.Http
 Imports System.Linq
 Imports System.Threading
 Imports System.Xml.Linq
@@ -33,7 +34,7 @@ Partial Public Class ClientModule
 
         Private Shared web As TestWebRequest = Nothing
         Private Shared originalHostType As Type = Nothing
-        Private sentRequests As New List(Of HttpWebRequest)()
+        Private sentRequests As New List(Of HttpRequestMessage)()
         Private ctx As NorthwindSimpleModel.NorthwindContext = Nothing
 
 #Region "Initialize DataService and create new context for each text"
@@ -66,9 +67,9 @@ Partial Public Class ClientModule
         End Sub
 
         Private Sub SendingRequestListenHttpMethod(ByVal sender As Object, ByVal args As SendingRequest2EventArgs)
-            Dim httpRequestMessage = TryCast(args.RequestMessage, HttpWebRequestMessage)
+            Dim httpRequestMessage = TryCast(args.RequestMessage, HttpClientRequestMessage)
             If httpRequestMessage IsNot Nothing Then
-                Dim httpRequest = httpRequestMessage.HttpWebRequest
+                Dim httpRequest = httpRequestMessage.HttpRequestMessage
                 sentRequests.Add(httpRequest)
             End If
 

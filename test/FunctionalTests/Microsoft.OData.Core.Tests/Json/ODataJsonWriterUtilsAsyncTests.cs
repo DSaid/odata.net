@@ -9,7 +9,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.OData.Json;
-using Microsoft.OData.JsonLight;
 using Xunit;
 
 namespace Microsoft.OData.Tests.Json
@@ -20,57 +19,16 @@ namespace Microsoft.OData.Tests.Json
     public class ODataJsonWriterUtilsAsyncTests
     {
         private StringWriter stringWriter;
-        private IJsonWriterAsync jsonWriter;
-        private ODataMessageWriterSettings settings;
+        private IJsonWriter jsonWriter;
         private Func<ICollection<ODataInstanceAnnotation>, Task> writeInstanceAnnotationsDelegate;
+        private ODataMessageWriterSettings messageWriterSettings;
 
         public ODataJsonWriterUtilsAsyncTests()
         {
             this.stringWriter = new StringWriter();
             this.jsonWriter = new JsonWriter(this.stringWriter, isIeee754Compatible: true);
-            this.settings = new ODataMessageWriterSettings();
             this.writeInstanceAnnotationsDelegate = async (ICollection<ODataInstanceAnnotation> instanceAnnotations) => await TaskUtils.CompletedTask;
-        }
-
-        [Fact]
-        public async Task StartJsonPaddingIfRequiredAsync_DoesNothingIfNullFunctionName()
-        {
-            settings.JsonPCallback = null;
-            await ODataJsonWriterUtils.StartJsonPaddingIfRequiredAsync(this.jsonWriter, settings);
-            Assert.Empty(stringWriter.GetStringBuilder().ToString());
-        }
-
-        [Fact]
-        public async Task StartJsonPaddingIfRequiredAsync_DoesNothingIfEmptyFunctionName()
-        {
-            settings.JsonPCallback = "";
-            await ODataJsonWriterUtils.StartJsonPaddingIfRequiredAsync(this.jsonWriter, settings);
-            Assert.Empty(stringWriter.GetStringBuilder().ToString());
-        }
-
-        [Fact]
-        public async Task EndJsonPaddingIfRequiredAsync_DoesNothingIfNullFunctionName()
-        {
-            settings.JsonPCallback = null;
-            await ODataJsonWriterUtils.EndJsonPaddingIfRequiredAsync(this.jsonWriter, settings);
-            Assert.Empty(stringWriter.GetStringBuilder().ToString());
-        }
-
-        [Fact]
-        public async Task EndJsonPaddingIfRequiredAsync_DoesNothingIfEmptyFunctionName()
-        {
-            settings.JsonPCallback = "";
-            await ODataJsonWriterUtils.EndJsonPaddingIfRequiredAsync(this.jsonWriter, settings);
-            Assert.Empty(stringWriter.GetStringBuilder().ToString());
-        }
-
-        [Fact]
-        public async Task StartAndEndJsonPaddingAsync_SuccessTest()
-        {
-            settings.JsonPCallback = "functionName";
-            await ODataJsonWriterUtils.StartJsonPaddingIfRequiredAsync(this.jsonWriter, settings);
-            await ODataJsonWriterUtils.EndJsonPaddingIfRequiredAsync(this.jsonWriter, settings);
-            Assert.Equal("functionName()", stringWriter.GetStringBuilder().ToString());
+            this.messageWriterSettings = new ODataMessageWriterSettings();
         }
 
         [Fact]
@@ -79,7 +37,7 @@ namespace Microsoft.OData.Tests.Json
             var error = new ODataError
             {
                 Target = "any target",
-                Details = new[] { new ODataErrorDetail { ErrorCode = "500", Target = "any target", Message = "any msg" } }
+                Details = new[] { new ODataErrorDetail { Code = "500", Target = "any target", Message = "any msg" } }
             };
 
             await ODataJsonWriterUtils.WriteErrorAsync(
@@ -87,26 +45,54 @@ namespace Microsoft.OData.Tests.Json
                 this.writeInstanceAnnotationsDelegate,
                 error,
                 includeDebugInformation: false,
-                maxInnerErrorDepth: 0);
+                this.messageWriterSettings);
             var result = stringWriter.GetStringBuilder().ToString();
             Assert.Equal("{\"error\":{" +
                 "\"code\":\"\"," +
                 "\"message\":\"\"," +
                 "\"target\":\"any target\"," +
-                "\"details\":[{\"code\":\"500\",\"target\":\"any target\",\"message\":\"any msg\"}]" +
+                "\"details\":[{\"code\":\"500\",\"message\":\"any msg\",\"target\":\"any target\"}]" +
             "}}", result);
         }
 
-
         [Fact]
-        public async Task WriteErrorAsync_InnerErrorWithNestedNullValue()
+        public async Task WriteErrorAsync_WritesTargetAndDetailsWithEscapedCharacters()
         {
-            IDictionary<string, ODataValue> properties = new Dictionary<string, ODataValue>();
-            properties.Add("stacktrace", "NormalString".ToODataValue());
-            properties.Add("MyNewObject", new ODataResourceValue()
+            var error = new ODataError
             {
-                TypeName = "ComplexValue",
-                Properties = new List<ODataProperty>()
+                Target = "any target",
+                Details = new[] { new ODataErrorDetail { Code = "500", Target = "any target", Message = "any msg with \"escaped characters\"" } }
+            };
+
+            await ODataJsonWriterUtils.WriteErrorAsync(
+                this.jsonWriter,
+                this.writeInstanceAnnotationsDelegate,
+                error,
+                includeDebugInformation: false,
+                this.messageWriterSettings);
+            var result = stringWriter.GetStringBuilder().ToString();
+            Assert.Equal("{\"error\":{" +
+                "\"code\":\"\"," +
+                "\"message\":\"\"," +
+                "\"target\":\"any target\"," +
+                "\"details\":[{\"code\":\"500\",\"message\":\"any msg with \\\"escaped characters\\\"\",\"target\":\"any target\"}]" +
+            "}}", result);
+        }
+
+        [Theory]
+        [InlineData(ODataLibraryCompatibility.UseLegacyODataInnerErrorSerialization, JsonConstants.ODataErrorInnerErrorInnerErrorName)]
+        [InlineData(ODataLibraryCompatibility.None, JsonConstants.ODataErrorInnerErrorName)]
+        public async Task WriteErrorAsync_InnerErrorWithNestedNullValue(ODataLibraryCompatibility libraryCompatibility, string nestedInnerErrorPropertyName)
+        {
+            IDictionary<string, ODataValue> properties = new Dictionary<string, ODataValue>
+            {
+                { "stacktrace", "NormalString".ToODataValue() },
+                {
+                    "MyNewObject",
+                    new ODataResourceValue()
+                    {
+                        TypeName = "ComplexValue",
+                        Properties = new List<ODataProperty>()
                 {
                     new ODataProperty
                     {
@@ -124,47 +110,60 @@ namespace Microsoft.OData.Tests.Json
                         }
                     }
                 }
-            });
-            IDictionary<string, ODataValue> nestedDict = new Dictionary<string, ODataValue>();
-            nestedDict.Add("nested", null);
+                    }
+                }
+            };
+
+            IDictionary<string, ODataValue> nestedDict = new Dictionary<string, ODataValue>
+            {
+                { "nested", null }
+            };
+
             var error = new ODataError
             {
                 Target = "any target",
-                Details = new[] { new ODataErrorDetail { ErrorCode = "500", Target = "any target", Message = "any msg" } },
+                Details = new[] { new ODataErrorDetail { Code = "500", Target = "any target", Message = "any msg" } },
                 InnerError = new ODataInnerError(properties) { InnerError = new ODataInnerError(nestedDict)}
             };
 
+            this.messageWriterSettings.MessageQuotas.MaxNestingDepth = 5;
+            this.messageWriterSettings.LibraryCompatibility |= libraryCompatibility;
             await ODataJsonWriterUtils.WriteErrorAsync(
                 this.jsonWriter,
                 this.writeInstanceAnnotationsDelegate,
                 error,
                 includeDebugInformation: true,
-                maxInnerErrorDepth: 5);
+                this.messageWriterSettings);
              var result = stringWriter.GetStringBuilder().ToString();
              Assert.Equal("{\"error\":{" +
                  "\"code\":\"\"," +
                  "\"message\":\"\"," +
                  "\"target\":\"any target\"," +
-                 "\"details\":[{\"code\":\"500\",\"target\":\"any target\",\"message\":\"any msg\"}]," +
+                 "\"details\":[{\"code\":\"500\",\"message\":\"any msg\",\"target\":\"any target\"}]," +
                  "\"innererror\":{" +
                     "\"stacktrace\":\"NormalString\"," +
                     "\"MyNewObject\":{" +
                         "\"NestedResourcePropertyName\":{\"InnerMostPropertyName\":\"InnerMostPropertyValue\"}" +
                     "}," +
-                    "\"internalexception\":{\"nested\":null}" +
+                    $"\"{nestedInnerErrorPropertyName}\":{{\"nested\":null}}" +
                 "}" +
             "}}", result);
         }
 
-        [Fact]
-        public async Task WriteErrorAsync_InnerErrorWithNestedProperties()
+        [Theory]
+        [InlineData(ODataLibraryCompatibility.UseLegacyODataInnerErrorSerialization, JsonConstants.ODataErrorInnerErrorInnerErrorName)]
+        [InlineData(ODataLibraryCompatibility.None, JsonConstants.ODataErrorInnerErrorName)]
+        public async Task WriteErrorAsync_InnerErrorWithNestedProperties(ODataLibraryCompatibility libraryCompatibility, string nestedInnerErrorPropertyName)
         {
-            IDictionary<string, ODataValue> properties = new Dictionary<string, ODataValue>();
-            properties.Add("stacktrace", "NormalString".ToODataValue());
-            properties.Add("MyNewObject", new ODataResourceValue
-            { 
-                TypeName = "ComplexValue",
-                Properties = new List<ODataProperty>
+            IDictionary<string, ODataValue> properties = new Dictionary<string, ODataValue>
+            {
+                { "stacktrace", "NormalString".ToODataValue() },
+                {
+                    "MyNewObject",
+                    new ODataResourceValue
+                    {
+                        TypeName = "ComplexValue",
+                        Properties = new List<ODataProperty>
                 {
                     new ODataProperty
                     {
@@ -172,31 +171,35 @@ namespace Microsoft.OData.Tests.Json
                         Value = "NestedPropertyValue"
                     }
                 }
-            });
+                    }
+                }
+            };
 
             var error = new ODataError
             {
                 Target = "any target",
-                Details = new[] { new ODataErrorDetail { ErrorCode = "500", Target = "any target", Message = "any msg" } },
+                Details = new[] { new ODataErrorDetail { Code = "500", Target = "any target", Message = "any msg" } },
                 InnerError = new ODataInnerError(properties) { InnerError = new ODataInnerError(properties) }
             };
 
+            this.messageWriterSettings.MessageQuotas.MaxNestingDepth = 5;
+            this.messageWriterSettings.LibraryCompatibility |= libraryCompatibility;
             await ODataJsonWriterUtils.WriteErrorAsync(
                 this.jsonWriter,
                 this.writeInstanceAnnotationsDelegate,
                 error,
                 includeDebugInformation: true,
-                maxInnerErrorDepth: 5);
+                this.messageWriterSettings);
             var result = stringWriter.GetStringBuilder().ToString();
             Assert.Equal("{\"error\":{" +
                 "\"code\":\"\"," +
                 "\"message\":\"\"," +
                 "\"target\":\"any target\"," +
-                "\"details\":[{\"code\":\"500\",\"target\":\"any target\",\"message\":\"any msg\"}]," +
+                "\"details\":[{\"code\":\"500\",\"message\":\"any msg\",\"target\":\"any target\"}]," +
                 "\"innererror\":{" +
                     "\"stacktrace\":\"NormalString\"," +
                     "\"MyNewObject\":{\"NestedResourcePropertyName\":\"NestedPropertyValue\"}," +
-                    "\"internalexception\":{" +
+                    $"\"{nestedInnerErrorPropertyName}\":{{" +
                         "\"stacktrace\":\"NormalString\"," +
                         "\"MyNewObject\":{\"NestedResourcePropertyName\":\"NestedPropertyValue\"}" +
                     "}" +
@@ -204,31 +207,41 @@ namespace Microsoft.OData.Tests.Json
             "}}", result);
         }
 
-        [Fact]
-        public async Task WriteErrorAsync_InnerErrorWithEmptyStringProperties()
+        [Theory]
+        [InlineData(ODataLibraryCompatibility.UseLegacyODataInnerErrorSerialization)]
+        [InlineData(ODataLibraryCompatibility.None)]
+        public async Task WriteErrorAsync_InnerErrorWithEmptyStringProperties(ODataLibraryCompatibility libraryCompatibility)
         {
             var error = new ODataError
             {
                 Target = "any target",
-                Details = new[] { new ODataErrorDetail { ErrorCode = "500", Target = "any target", Message = "any msg" } },
-                InnerError = new ODataInnerError
-                {
-                    Message = "The other properties on the inner error object should serialize as empty strings because of using this constructor."
-                }
+                Details = new[] { new ODataErrorDetail { Code = "500", Target = "any target", Message = "any msg" } },
+                InnerError = new ODataInnerError(
+                    new Dictionary<string, ODataValue>
+                    {
+                        {
+                            JsonConstants.ODataErrorInnerErrorMessageName,
+                            new ODataPrimitiveValue("The other properties on the inner error object should serialize as empty strings because of using this constructor.")
+                        },
+                        { JsonConstants.ODataErrorInnerErrorTypeNameName, new ODataPrimitiveValue("") },
+                        { JsonConstants.ODataErrorInnerErrorStackTraceName, new ODataPrimitiveValue("") }
+                    })
             };
 
+            this.messageWriterSettings.MessageQuotas.MaxNestingDepth = 5;
+            this.messageWriterSettings.LibraryCompatibility |= libraryCompatibility;
             await ODataJsonWriterUtils.WriteErrorAsync(
                 this.jsonWriter,
                 this.writeInstanceAnnotationsDelegate,
                 error,
                 includeDebugInformation: true,
-                maxInnerErrorDepth: 5);
+                this.messageWriterSettings);
             var result = stringWriter.GetStringBuilder().ToString();
             Assert.Equal("{\"error\":{" +
                 "\"code\":\"\"," +
                 "\"message\":\"\"," +
                 "\"target\":\"any target\"," +
-                "\"details\":[{\"code\":\"500\",\"target\":\"any target\",\"message\":\"any msg\"}]," +
+                "\"details\":[{\"code\":\"500\",\"message\":\"any msg\",\"target\":\"any target\"}]," +
                 "\"innererror\":{" +
                     "\"message\":\"The other properties on the inner error object should serialize as empty strings because of using this constructor.\"," +
                     "\"type\":\"\"," +
@@ -237,10 +250,18 @@ namespace Microsoft.OData.Tests.Json
             "}}", result);
         }
 
-        [Fact]
-        public async Task WriteErrorAsync_InnerErrorWithCollectionAndNulls()
+        [Theory]
+        [InlineData(ODataLibraryCompatibility.UseLegacyODataInnerErrorSerialization)]
+        [InlineData(ODataLibraryCompatibility.None)]
+        public async Task WriteErrorAsync_InnerErrorWithCollectionAndNulls(ODataLibraryCompatibility libraryCompatibility)
         {
-            ODataInnerError innerError = new ODataInnerError();
+            ODataInnerError innerError = new ODataInnerError(
+                new Dictionary<string, ODataValue>
+                {
+                    { JsonConstants.ODataErrorInnerErrorMessageName, new ODataPrimitiveValue("") },
+                    { JsonConstants.ODataErrorInnerErrorTypeNameName, new ODataPrimitiveValue("") },
+                    { JsonConstants.ODataErrorInnerErrorStackTraceName, new ODataPrimitiveValue("") }
+                });
             innerError.Properties.Add("ResourceValue", new ODataResourceValue
             {
                 Properties = new ODataProperty[]
@@ -262,22 +283,24 @@ namespace Microsoft.OData.Tests.Json
             var error = new ODataError
             {
                 Target = "any target",
-                Details = new[] { new ODataErrorDetail { ErrorCode = "500", Target = "any target", Message = "any msg" } },
+                Details = new[] { new ODataErrorDetail { Code = "500", Target = "any target", Message = "any msg" } },
                 InnerError = innerError
             };
 
+            this.messageWriterSettings.MessageQuotas.MaxNestingDepth = 5;
+            this.messageWriterSettings.LibraryCompatibility |= libraryCompatibility;
             await ODataJsonWriterUtils.WriteErrorAsync(
                 this.jsonWriter,
                 this.writeInstanceAnnotationsDelegate,
                 error,
                 includeDebugInformation: true,
-                maxInnerErrorDepth: 5);
+                this.messageWriterSettings);
             var result = stringWriter.GetStringBuilder().ToString();
             Assert.Equal("{\"error\":{" +
                 "\"code\":\"\"," +
                 "\"message\":\"\"," +
                 "\"target\":\"any target\"," +
-                "\"details\":[{\"code\":\"500\",\"target\":\"any target\",\"message\":\"any msg\"}]," +
+                "\"details\":[{\"code\":\"500\",\"message\":\"any msg\",\"target\":\"any target\"}]," +
                 "\"innererror\":{" +
                     "\"message\":\"\"," +
                     "\"type\":\"\"," +
@@ -301,13 +324,13 @@ namespace Microsoft.OData.Tests.Json
                 {
                     foreach (var annotation in instanceAnnotations)
                     {
-                        await this.jsonWriter.WriteNameAsync(JsonLightConstants.ODataPropertyAnnotationSeparatorChar + annotation.Name);
+                        await this.jsonWriter.WriteNameAsync(ODataJsonConstants.ODataPropertyAnnotationSeparatorChar + annotation.Name);
                         await this.jsonWriter.WritePrimitiveValueAsync(((ODataPrimitiveValue)annotation.Value).Value);
                     }
                 },
                 error,
                 includeDebugInformation: false,
-                maxInnerErrorDepth: 0);
+                this.messageWriterSettings);
             var result = stringWriter.GetStringBuilder().ToString();
             Assert.Equal("{\"error\":{" +
                 "\"code\":\"\"," +
@@ -331,7 +354,7 @@ namespace Microsoft.OData.Tests.Json
                     null,
                     error,
                     includeDebugInformation: false,
-                    maxInnerErrorDepth: 0);
+                    this.messageWriterSettings);
                 });
         }
     }

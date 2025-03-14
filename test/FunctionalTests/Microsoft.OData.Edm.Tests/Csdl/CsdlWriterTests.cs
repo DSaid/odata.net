@@ -9,11 +9,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-#if NETCOREAPP3_1
+using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-#endif
 using System.Xml;
+using System.Xml.Linq;
 using Microsoft.OData.Edm.Csdl;
 using Microsoft.OData.Edm.Validation;
 using Microsoft.OData.Edm.Vocabularies;
@@ -22,7 +22,7 @@ using Xunit;
 
 namespace Microsoft.OData.Edm.Tests.Csdl
 {
-    public class CsdlWriterTests
+    public partial class CsdlWriterTests
     {
         #region Reference
         [Fact]
@@ -2226,7 +2226,7 @@ namespace Microsoft.OData.Edm.Tests.Csdl
             model.AddElements(new IEdmSchemaElement[] { complex, term1, term2, term3 });
 
             // annotation with value
-            IEdmVocabularyAnnotation annotation = new EdmVocabularyAnnotation(complex, term1, new EdmAnnotationPathExpression("abc/efg"));
+            IEdmVocabularyAnnotation annotation = term1.CreateVocabularyAnnotation(complex, new EdmAnnotationPathExpression("abc/efg"));
             annotation.SetSerializationLocation(model, EdmVocabularyAnnotationSerializationLocation.Inline);
             model.SetVocabularyAnnotation(annotation);
 
@@ -2352,7 +2352,7 @@ namespace Microsoft.OData.Edm.Tests.Csdl
                      "<Annotation Term=\"NS.DefaultDateTerm\" />" +
                    "</ComplexType>" +
                  "<Term Name=\"DefaultBinaryTerm\" Type=\"Edm.Binary\" DefaultValue=\"01\" Nullable=\"false\" />" +
-                 "<Term Name=\"DefaultDecimalTerm\" Type=\"Edm.Decimal\" DefaultValue=\"0.34\" Nullable=\"false\" />" +
+                 "<Term Name=\"DefaultDecimalTerm\" Type=\"Edm.Decimal\" DefaultValue=\"0.34\" Nullable=\"false\" Scale=\"variable\" />" +
                  "<Term Name=\"DefaultStringTerm\" Type=\"Edm.String\" DefaultValue=\"This is a test\" Nullable=\"false\" />" +
                  "<Term Name=\"DefaultDurationTerm\" Type=\"Edm.Duration\" DefaultValue=\"P11DT23H59M59.999999999999S\" Nullable=\"false\" />" +
                  "<Term Name=\"DefaultTimeOfDayTerm\" Type=\"Edm.TimeOfDay\" DefaultValue=\"21:45:00\" Nullable=\"false\" />" +
@@ -2456,6 +2456,75 @@ namespace Microsoft.OData.Edm.Tests.Csdl
     }
   }
 }");
+        }
+
+        [Fact]
+        public void CanWriteScaleAndSridVariable_UsingLegacyVariable()
+        {
+            CsdlXmlWriterSettings writerSettings = new CsdlXmlWriterSettings
+            {
+                LibraryCompatibility = EdmLibraryCompatibility.UseLegacyVariableCasing
+            };
+
+            string csdlTemplate = "<?xml version=\"1.0\" encoding=\"utf-16\"?>" +
+                "<edmx:Edmx Version=\"4.0\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
+                "<edmx:DataServices>" +
+                "<Schema Namespace=\"NS\" xmlns=\"http://docs.oasis-open.org/odata/ns/edm\">" +
+                "<ComplexType Name=\"Complex\">" +
+                "<Property Name=\"GeographyPoint\" Type=\"Edm.GeographyPoint\" SRID=\"Variable\" />" +
+                "<Annotation Term=\"NS.DefaultDecimalTerm\" />" +
+                "</ComplexType>" +
+                "<Term Name=\"DefaultDecimalTerm\" Type=\"Edm.Decimal\" DefaultValue=\"0.34\" AppliesTo=\"Property Term\" Nullable=\"false\" Scale=\"Variable\" />" +
+                "</Schema>" +
+                "</edmx:DataServices>" +
+                "</edmx:Edmx>";
+
+            // Parse into CSDL
+            IEdmModel model;
+            using (XmlReader xr = XElement.Parse(csdlTemplate).CreateReader())
+            {
+                model = CsdlReader.Parse(xr);
+            }
+
+            // Validate model
+            IEnumerable<EdmError> errors;
+            bool validated = model.Validate(out errors);
+            Assert.True(validated);
+
+            // Act & Assert for Reserialized XML
+            WriteAndVerifyXml(model, csdlTemplate, writerSettings);
+        }
+
+        [Fact]
+        public void CanWriteScaleAndSridVariable_UsingLowerCase_Variable()
+        {
+            string csdlTemplate = "<?xml version=\"1.0\" encoding=\"utf-16\"?>" +
+                "<edmx:Edmx Version=\"4.0\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
+                "<edmx:DataServices>" +
+                "<Schema Namespace=\"NS\" xmlns=\"http://docs.oasis-open.org/odata/ns/edm\">" +
+                "<ComplexType Name=\"Complex\">" +
+                "<Property Name=\"GeographyPoint\" Type=\"Edm.GeographyPoint\" SRID=\"variable\" />" +
+                "<Annotation Term=\"NS.DefaultDecimalTerm\" />" +
+                "</ComplexType>" +
+                "<Term Name=\"DefaultDecimalTerm\" Type=\"Edm.Decimal\" DefaultValue=\"0.34\" AppliesTo=\"Property Term\" Nullable=\"false\" Scale=\"variable\" />" +
+                "</Schema>" +
+                "</edmx:DataServices>" +
+                "</edmx:Edmx>";
+
+            // Parse into CSDL
+            IEdmModel model;
+            using (XmlReader xr = XElement.Parse(csdlTemplate).CreateReader())
+            {
+                model = CsdlReader.Parse(xr);
+            }
+
+            // Validate model
+            IEnumerable<EdmError> errors;
+            bool validated = model.Validate(out errors);
+            Assert.True(validated);
+
+            // Act & Assert for Reserialized XML
+            WriteAndVerifyXml(model, csdlTemplate);
         }
 
         [Fact]
@@ -2615,6 +2684,152 @@ namespace Microsoft.OData.Edm.Tests.Csdl
         }
 
         [Fact]
+        public void CanWriteNavigationPropertyBindingTargetWithTypeCast()
+        {
+            EdmModel model = new EdmModel();
+
+            var purchaseOrderEntityType = new EdmEntityType("NS", "PurchaseOrder");
+            var key = purchaseOrderEntityType.AddStructuralProperty("Id", EdmPrimitiveTypeKind.String, /*isNullable*/ false);
+            purchaseOrderEntityType.AddKeys(key);
+
+            var productEntityType = new EdmEntityType("NS", "Product");
+            key = productEntityType.AddStructuralProperty("Id", EdmPrimitiveTypeKind.String, /*isNullable*/ false);
+            productEntityType.AddKeys(key);
+
+            var widgetEntityType = new EdmEntityType("NS", "Widget", productEntityType);
+
+            var dooHickeyEntityType = new EdmEntityType("NS", "DooHickey", productEntityType);
+
+            // Navigation Property to Product
+            var productNavigationProperty = purchaseOrderEntityType.AddUnidirectionalNavigation(new EdmNavigationPropertyInfo()
+            {
+                ContainsTarget = false,
+                Name = "Product",
+                Target = productEntityType,
+                TargetMultiplicity = EdmMultiplicity.Many
+            });
+
+            model.AddElement(purchaseOrderEntityType);
+            model.AddElement(productEntityType);
+            model.AddElement(widgetEntityType);
+            model.AddElement(dooHickeyEntityType);
+
+            var entityContainer = new EdmEntityContainer("NS", "MyApi");
+            var purchaseOrdersEntitySet = entityContainer.AddEntitySet("PurchaseOrders", purchaseOrderEntityType);
+            var widgetEntitySet = entityContainer.AddEntitySet("Widgets", widgetEntityType);
+            var dooHickeyEntitySet = entityContainer.AddEntitySet("DooHickies", dooHickeyEntityType);
+            model.AddElement(entityContainer);
+            purchaseOrdersEntitySet.AddNavigationTarget(productNavigationProperty, widgetEntitySet, new EdmPathExpression("Product/NS.Widget"));
+            purchaseOrdersEntitySet.AddNavigationTarget(productNavigationProperty, dooHickeyEntitySet, new EdmPathExpression("Product/NS.DooHickey"));
+
+            IEnumerable<EdmError> errors;
+            Assert.True(model.Validate(out errors));
+            Assert.Empty(errors);
+
+var v40Json = 
+@"{
+  ""$Version"": ""4.0"",
+  ""$EntityContainer"": ""NS.MyApi"",
+  ""NS"": {
+    ""PurchaseOrder"": {
+      ""$Kind"": ""EntityType"",
+      ""$Key"": [
+        ""Id""
+      ],
+      ""Id"": {},
+      ""Product"": {
+        ""$Kind"": ""NavigationProperty"",
+        ""$Collection"": true,
+        ""$Type"": ""NS.Product""
+      }
+    },
+    ""Product"": {
+      ""$Kind"": ""EntityType"",
+      ""$Key"": [
+        ""Id""
+      ],
+      ""Id"": {}
+    },
+    ""Widget"": {
+      ""$Kind"": ""EntityType"",
+      ""$BaseType"": ""NS.Product""
+    },
+    ""DooHickey"": {
+      ""$Kind"": ""EntityType"",
+      ""$BaseType"": ""NS.Product""
+    },
+    ""MyApi"": {
+      ""$Kind"": ""EntityContainer"",
+      ""PurchaseOrders"": {
+        ""$Collection"": true,
+        ""$Type"": ""NS.PurchaseOrder"",
+        ""$NavigationPropertyBinding"": {
+          ""Product/NS.DooHickey"": ""DooHickies"",
+          ""Product/NS.Widget"": ""Widgets""
+        }
+      },
+      ""Widgets"": {
+        ""$Collection"": true,
+        ""$Type"": ""NS.Widget""
+      },
+      ""DooHickies"": {
+        ""$Collection"": true,
+        ""$Type"": ""NS.DooHickey""
+      }
+    }
+  }
+}";
+
+            var xmlResult =
+                "<?xml version=\"1.0\" encoding=\"utf-16\"?>" +
+                    "<edmx:Edmx Version=\"{0}\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
+                    "<edmx:DataServices>" +
+                    "<Schema Namespace=\"NS\" xmlns=\"http://docs.oasis-open.org/odata/ns/edm\">" +
+                        "<EntityType Name=\"PurchaseOrder\">" +
+                            "<Key><PropertyRef Name=\"Id\" /></Key>" +
+                            "<Property Name=\"Id\" Type=\"Edm.String\" Nullable=\"false\" />" +
+                            "<NavigationProperty Name=\"Product\" Type=\"Collection(NS.Product)\" />" +
+                        "</EntityType>" +
+                        "<EntityType Name=\"Product\">" +
+                            "<Key><PropertyRef Name=\"Id\" /></Key>" +
+                            "<Property Name=\"Id\" Type=\"Edm.String\" Nullable=\"false\" />" +
+                        "</EntityType>" +
+                        "<EntityType Name=\"Widget\" BaseType=\"NS.Product\" />" +
+                        "<EntityType Name=\"DooHickey\" BaseType=\"NS.Product\" />" +
+                        "<EntityContainer Name=\"MyApi\">" +
+                        "{1}" +
+                            "<EntitySet Name=\"Widgets\" EntityType=\"NS.Widget\" />" +
+                            "<EntitySet Name=\"DooHickies\" EntityType=\"NS.DooHickey\" />" +
+                        "</EntityContainer>" +
+                    "</Schema>" +
+                    "</edmx:DataServices>" +
+                "</edmx:Edmx>";
+
+            var v40EntitySet =
+                            "<EntitySet Name=\"PurchaseOrders\" EntityType=\"NS.PurchaseOrder\" />";
+
+            var v401EntitySet =
+                            "<EntitySet Name=\"PurchaseOrders\" EntityType=\"NS.PurchaseOrder\">" +
+                                "<NavigationPropertyBinding Path=\"Product/NS.DooHickey\" Target=\"DooHickies\" />" +
+                                "<NavigationPropertyBinding Path=\"Product/NS.Widget\" Target=\"Widgets\" />" +
+                            "</EntitySet>";
+
+            // Act & Assert for XML 4.0
+            WriteAndVerifyXml(model, String.Format(xmlResult, "4.0", v40EntitySet));
+
+            // Act & Assert for JSON 4.0
+            WriteAndVerifyJson(model, v40Json);
+
+            model.SetEdmVersion(Version.Parse("4.01"));
+
+            // Act & Assert for XML 4.1
+            WriteAndVerifyXml(model, String.Format(xmlResult, "4.01", v401EntitySet));
+
+            // Act & Assert for JSON 4.1
+            WriteAndVerifyJson(model, v40Json.Replace("4.0", "4.01"));
+        }
+
+        [Fact]
         public void CanWriteEdmModelWithUntypedProperty()
         {
             EdmModel model = new EdmModel();
@@ -2704,9 +2919,27 @@ namespace Microsoft.OData.Edm.Tests.Csdl
             }
         }
 
+        internal static void WriteAndVerifyXml(IEdmModel model, string expected, CsdlXmlWriterSettings csdlXmlWriterSettings, CsdlTarget target = CsdlTarget.OData)
+        {
+            using (StringWriter sw = new StringWriter())
+            {
+                XmlWriterSettings settings = new XmlWriterSettings();
+                settings.Encoding = System.Text.Encoding.UTF8;
+
+                using (XmlWriter xw = XmlWriter.Create(sw, settings))
+                {
+                    IEnumerable<EdmError> errors;
+                    CsdlWriter.TryWriteCsdl(model, xw, target, csdlXmlWriterSettings, out errors);
+                    xw.Flush();
+                }
+
+                string actual = sw.ToString();
+                Assert.Equal(expected, actual);
+            }
+        }
+
         internal void WriteAndVerifyJson(IEdmModel model, string expected, bool indented = true, bool isIeee754Compatible = false)
         {
-#if NETCOREAPP3_1
             using (MemoryStream memStream = new MemoryStream())
             {
                 JsonWriterOptions options = new JsonWriterOptions
@@ -2730,7 +2963,6 @@ namespace Microsoft.OData.Edm.Tests.Csdl
                 string actual = new StreamReader(memStream).ReadToEnd();
                 Assert.Equal(expected, actual);
             }
-#endif
         }
 
         [Fact]
@@ -2811,6 +3043,47 @@ namespace Microsoft.OData.Edm.Tests.Csdl
     }
   }
 }");
+        }
+
+        [Theory]
+        [InlineData(CsdlTarget.OData, "<edmx:DataServices>", "</edmx:DataServices>")]
+        [InlineData(CsdlTarget.EntityFramework, "<edmx:Runtime><edmx:ConceptualModels>", "</edmx:ConceptualModels></edmx:Runtime>")]
+        public void TryWriteCsdlShouldFlush(CsdlTarget csdlTarget, string schemaParentOpeningPartial, string schemaParentClosingPartial)
+        {
+            EdmModel model = new EdmModel();
+
+            var customerEntityType = new EdmEntityType("NS", "Customer");
+            var key = customerEntityType.AddStructuralProperty("Id", EdmPrimitiveTypeKind.Int32);
+            customerEntityType.AddKeys(key);
+            customerEntityType.AddStructuralProperty("Name", EdmPrimitiveTypeKind.String);
+            model.AddElement(customerEntityType);
+
+            var builder = new StringBuilder();
+            using (var writer = XmlWriter.Create(builder, new XmlWriterSettings { Encoding = Encoding.UTF8 }))
+            {
+                if (!CsdlWriter.TryWriteCsdl(model, writer, csdlTarget, out var errors))
+                {
+                    Assert.True(false, "Serialization was unsuccessful");
+                }
+
+                // Xml writer should have flushed whatever is in the buffer before TryWriteCsdl is exited
+                Assert.Equal(
+                    builder.ToString(),
+                    "<?xml version=\"1.0\" encoding=\"utf-16\"?>" +
+                "<edmx:Edmx Version=\"4.0\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
+                  schemaParentOpeningPartial +
+                    "<Schema Namespace=\"NS\" xmlns=\"http://docs.oasis-open.org/odata/ns/edm\">" +
+                        "<EntityType Name=\"Customer\">" +
+                        "<Key>" +
+                            "<PropertyRef Name=\"Id\" />" +
+                        "</Key>" +
+                        "<Property Name=\"Id\" Type=\"Edm.Int32\" />" +
+                        "<Property Name=\"Name\" Type=\"Edm.String\" />" +
+                        "</EntityType>" +
+                    "</Schema>" +
+                  schemaParentClosingPartial +
+                "</edmx:Edmx>");
+            }
         }
     }
 }

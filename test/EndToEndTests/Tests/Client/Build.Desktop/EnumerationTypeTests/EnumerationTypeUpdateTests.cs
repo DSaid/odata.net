@@ -10,19 +10,18 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
     using System.Collections.ObjectModel;
     using System.Linq;
     using Microsoft.OData;
-    using Microsoft.OData.UriParser;
     using Microsoft.OData.Edm;
     using Microsoft.Test.OData.Services.TestServices;
     using Microsoft.Test.OData.Services.TestServices.ODataWCFServiceReference;
     using Microsoft.Test.OData.Tests.Client.Common;
-    using OClient = Microsoft.OData.Client;
     using Xunit;
+    using System.Collections.Generic;
 
     /// <summary>
     /// Send query and verify the results from the service implemented using ODataLib and EDMLib.
     /// </summary>
 
-    public class EnumerationTypeUpdateTests : ODataWCFServiceTestsBase<InMemoryEntities>
+    public class EnumerationTypeUpdateTests : ODataWCFServiceTestsBase<InMemoryEntities>, IDisposable
     {
         private static string NameSpacePrefix = "Microsoft.Test.OData.Services.ODataWCFService.";
 
@@ -91,9 +90,10 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
                 // verify the create
                 Assert.Equal(201, responseMessage.StatusCode);
                 ODataResource entry = this.QueryEntityItem("Products(101)") as ODataResource;
-                ODataEnumValue skinColor = entry.Properties.Single(p => p.Name == "SkinColor").Value as ODataEnumValue;
-                ODataEnumValue userAccess = entry.Properties.Single(p => p.Name == "UserAccess").Value as ODataEnumValue;
-                Assert.Equal(101, entry.Properties.Single(p => p.Name == "ProductID").Value);
+                IEnumerable<ODataProperty> properties = entry.Properties.OfType<ODataProperty>();
+                ODataEnumValue skinColor = Assert.IsType<ODataEnumValue>(properties.Single(p => p.Name == "SkinColor").Value);
+                ODataEnumValue userAccess = Assert.IsType<ODataEnumValue>(properties.Single(p => p.Name == "UserAccess").Value);
+                Assert.Equal(101, properties.Single(p => p.Name == "ProductID").Value);
                 Assert.Equal("Green", skinColor.Value);
                 Assert.Equal("Read", userAccess.Value);
 
@@ -153,8 +153,9 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
                 // verify the update
                 Assert.Equal(204, responseMessage.StatusCode);
                 ODataResource updatedProduct = this.QueryEntityItem("Products(5)") as ODataResource;
-                ODataEnumValue skinColor = updatedProduct.Properties.Single(p => p.Name == "SkinColor").Value as ODataEnumValue;
-                ODataEnumValue userAccess = updatedProduct.Properties.Single(p => p.Name == "UserAccess").Value as ODataEnumValue;
+                IEnumerable<ODataProperty> properties = updatedProduct.Properties.OfType<ODataProperty>();
+                ODataEnumValue skinColor = Assert.IsType<ODataEnumValue>(properties.Single(p => p.Name == "SkinColor").Value);
+                ODataEnumValue userAccess = Assert.IsType<ODataEnumValue>(properties.Single(p => p.Name == "UserAccess").Value);
                 Assert.Equal("Green", skinColor.Value);
                 Assert.Equal("Read", userAccess.Value);
             }
@@ -232,7 +233,7 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
             ODataMessageReaderSettings readerSettings = new ODataMessageReaderSettings() { BaseUri = ServiceBaseUri };
 
             var queryRequestMessage = new HttpWebRequestMessage(new Uri(ServiceBaseUri.AbsoluteUri + uri, UriKind.Absolute));
-            queryRequestMessage.SetHeader("Accept", MimeTypes.ApplicationJsonLight);
+            queryRequestMessage.SetHeader("Accept", MimeTypes.ApplicationJson);
             var queryResponseMessage = queryRequestMessage.GetResponse();
             Assert.Equal(expectedStatusCode, queryResponseMessage.StatusCode);
 
@@ -258,5 +259,10 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
         }
 
         #endregion
+
+        public override void Dispose()
+        {
+            base.Dispose();
+        }
     }
 }

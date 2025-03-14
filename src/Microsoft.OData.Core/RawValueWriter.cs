@@ -17,7 +17,7 @@ namespace Microsoft.OData
     /// <summary>
     /// Class that handles writing top level raw values to a stream.
     /// </summary>
-    internal sealed class RawValueWriter : IDisposable
+    internal sealed class RawValueWriter : IDisposable, IAsyncDisposable
     {
         /// <summary>
         /// Writer settings.
@@ -87,6 +87,28 @@ namespace Microsoft.OData
         }
 
         /// <summary>
+        /// Asynchronously disposes the <see cref="RawValueWriter"/>.
+        /// It flushes itself and then disposes its inner <see cref="System.IO.TextWriter"/>.
+        /// </summary>
+        /// <returns>A task that represents the asynchronous dispose operation.</returns>
+        public ValueTask DisposeAsync()
+        {
+            return DisposeInnerAsync();
+
+            async ValueTask DisposeInnerAsync()
+            {
+                Debug.Assert(this.textWriter != null, "The text writer has not been initialized yet.");
+
+                if (this.textWriter != null)
+                {
+                    await this.textWriter.DisposeAsync().ConfigureAwait(false);
+                }
+
+                this.textWriter = null;
+            }
+        }
+
+        /// <summary>
         /// Start writing a raw output. This should only be called once.
         /// </summary>
         internal void Start()
@@ -125,7 +147,7 @@ namespace Microsoft.OData
             }
             else if (value is Geometry || value is Geography)
             {
-                PrimitiveConverter.Instance.WriteJsonLight(value, jsonWriter);
+                PrimitiveConverter.Instance.WriteJson(value, jsonWriter);
             }
             else if (ODataRawValueUtils.TryConvertPrimitiveToString(value, out string valueAsString))
             {
@@ -156,15 +178,22 @@ namespace Microsoft.OData
         /// Asynchronously start writing a raw output. This should only be called once.
         /// </summary>
         /// <returns>A task that represents the asynchronous write operation.</returns>
-        internal async Task StartAsync()
+        internal Task StartAsync()
         {
             if (this.settings.HasJsonPaddingFunction())
             {
-                await this.textWriter.WriteAsync(this.settings.JsonPCallback)
+                return StartInnerAsync();
+
+                async Task StartInnerAsync()
+                {
+                    await this.textWriter.WriteAsync(this.settings.JsonPCallback)
                     .ConfigureAwait(false);
-                await this.textWriter.WriteAsync(JsonConstants.StartPaddingFunctionScope)
-                    .ConfigureAwait(false);
+                    await this.textWriter.WriteAsync(JsonConstants.StartPaddingFunctionScope)
+                        .ConfigureAwait(false);
+                }
             }
+
+            return TaskUtils.CompletedTask;
         }
 
         /// <summary>
@@ -200,8 +229,13 @@ namespace Microsoft.OData
 
             if (value is Geometry || value is Geography)
             {
-                return TaskUtils.GetTaskForSynchronousOperation(
-                    () => PrimitiveConverter.Instance.WriteJsonLight(value, jsonWriter));
+                return TaskUtils.GetTaskForSynchronousOperation((
+                    valueParam,
+                    jsonWriterParam) => PrimitiveConverter.Instance.WriteJson(
+                        valueParam,
+                        jsonWriterParam),
+                    value,
+                    jsonWriter);
             }
 
             if (ODataRawValueUtils.TryConvertPrimitiveToString(value, out string valueAsString))
@@ -241,7 +275,7 @@ namespace Microsoft.OData
             // We must create the text writer over a stream which will ignore Dispose, since we need to be able to Dispose
             // the writer without disposing the underlying message stream.
             Stream nonDisposingStream;
-            if (MessageStreamWrapper.IsNonDisposingStream(this.stream) || this.stream is AsyncBufferedStream)
+            if (MessageStreamWrapper.IsNonDisposingStream(this.stream))
             {
                 // AsyncBufferedStream ignores Dispose
                 nonDisposingStream = this.stream;

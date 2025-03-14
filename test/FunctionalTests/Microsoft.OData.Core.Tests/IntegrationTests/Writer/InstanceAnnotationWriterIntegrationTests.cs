@@ -6,8 +6,9 @@
 
 using System;
 using System.IO;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OData.Core.Tests.DependencyInjection;
 using Microsoft.OData.Edm;
-using Microsoft.Test.OData.DependencyInjection;
 using Xunit;
 
 namespace Microsoft.OData.Tests.IntegrationTests.Writer
@@ -55,7 +56,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         #region Writing instance annotations on top level feed
 
         [Fact]
-        public void WriteAnnotationAtStartOnTopLevelFeedAsResponseInJsonLight()
+        public void WriteAnnotationAtStartOnTopLevelFeedAsResponseInJson()
         {
             string expectedPayload =
             "{" +
@@ -71,7 +72,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteDeltaLinkAtStartOnTopLevelFeedAsResponseInJsonLight()
+        public void WriteDeltaLinkAtStartOnTopLevelFeedAsResponseInJson()
         {
             string expectedPayload =
             "{" +
@@ -87,7 +88,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationAtStartOnTopLevelFeedAsRequestInJsonLight()
+        public void WriteAnnotationAtStartOnTopLevelFeedAsRequestInJson()
         {
             string expectedPayload =
             "{" +
@@ -117,7 +118,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationAtEndOnTopLevelFeedForRequestInJsonLight()
+        public void WriteAnnotationAtEndOnTopLevelFeedForRequestInJson()
         {
             string expectedPayload =
             "{" +
@@ -131,7 +132,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationAtEndOnTopLevelFeedForResponseInJsonLight()
+        public void WriteAnnotationAtEndOnTopLevelFeedForResponseInJson()
         {
             string expectedPayload =
             "{" +
@@ -165,7 +166,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         #region Writing instance annotations on top level entry
 
         [Fact]
-        public void WriteAnnotationAtEndOnTopLevelEntryInJsonLight()
+        public void WriteAnnotationAtEndOnTopLevelEntryInJson()
         {
             string expectedPayload =
             "{" +
@@ -180,7 +181,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationAtEndOnSingletonInJsonLight()
+        public void WriteAnnotationAtEndOnSingletonInJson()
         {
             string expectedPayload =
             "{" +
@@ -211,7 +212,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationAtStartOnTopLevelEntryInJsonLight()
+        public void WriteAnnotationAtStartOnTopLevelEntryInJson()
         {
             string expectedPayload =
             "{" +
@@ -226,7 +227,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationAtStartOnSingletonInJsonLight()
+        public void WriteAnnotationAtStartOnSingletonInJson()
         {
             string expectedPayload =
             "{" +
@@ -261,7 +262,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         #region Writing instance annotations on expanded entry in expanded feed
 
         [Fact]
-        public void WriteAnnotationOnExpandedEntryInExpandedFeedInJsonLight()
+        public void WriteAnnotationOnExpandedEntryInExpandedFeedInJson()
         {
             string expectedPayload =
             "{" +
@@ -280,7 +281,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationOnExpandedEntryInExpandedFeedOfSingletonInJsonLight()
+        public void WriteAnnotationOnExpandedEntryInExpandedFeedOfSingletonInJson()
         {
             string expectedPayload =
             "{" +
@@ -331,7 +332,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationOnMultipleExpandedEntriesInExpandedFeedInJsonLight()
+        public void WriteAnnotationOnMultipleExpandedEntriesInExpandedFeedInJson()
         {
             string expectedPayload =
             "{" +
@@ -357,7 +358,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationOnMultipleExpandedEntriesInExpandedFeedOfSingletonInJsonLight()
+        public void WriteAnnotationOnMultipleExpandedEntriesInExpandedFeedOfSingletonInJson()
         {
             string expectedPayload =
             "{" +
@@ -425,7 +426,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         #region Writing instance annotations on expanded entry not in expanded feed
 
         [Fact]
-        public void WriteAnnotationOnExpandedEntriesNotInExpandedFeedInJsonLight()
+        public void WriteAnnotationOnExpandedEntriesNotInExpandedFeedInJson()
         {
             string expectedPayload =
             "{" +
@@ -443,7 +444,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteAnnotationOnSingletonNotInExpandedFeedInJsonLight()
+        public void WriteAnnotationOnSingletonNotInExpandedFeedInJson()
         {
             string expectedPayload =
             "{" +
@@ -490,7 +491,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         #region Writing instance annotations on expanded feeds
 
         [Fact]
-        public void WriteAnnotationAtStartExpandedFeedShouldFailInJsonLight()
+        public void WriteAnnotationAtStartExpandedFeedShouldFailInJson()
         {
             this.WriteAnnotationAtStartExpandedFeedShouldFail(ODataFormat.Json);
         }
@@ -513,14 +514,14 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
             };
 
             Action testResponse = () => this.WriteAnnotationsAndValidatePayload(action, EntitySet, format, null, request: false, createFeedWriter: false);
-            testResponse.Throws<ODataException>(Strings.ODataJsonLightWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
+            testResponse.Throws<ODataException>(Strings.ODataJsonWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
 
             Action testRequest = () => this.WriteAnnotationsAndValidatePayload(action, EntitySet, format, null, request: true, createFeedWriter: false);
-            testRequest.Throws<ODataException>(Strings.ODataJsonLightWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
+            testRequest.Throws<ODataException>(Strings.ODataJsonWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
         }
 
         [Fact]
-        public void WriteAnnotationAtEndExpandedFeedShouldFailInJsonLight()
+        public void WriteAnnotationAtEndExpandedFeedShouldFailInJson()
         {
             this.WriteAnnotationAtEndExpandedFeedShouldFail(ODataFormat.Json);
         }
@@ -543,16 +544,16 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
             };
 
             Action testResponse = () => this.WriteAnnotationsAndValidatePayload(action, EntitySet, format, null, request: false, createFeedWriter: false);
-            testResponse.Throws<ODataException>(Strings.ODataJsonLightWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
+            testResponse.Throws<ODataException>(Strings.ODataJsonWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
 
             Action testResponseOfSingleton = () => this.WriteAnnotationsAndValidatePayload(action, Singleton, format, null, request: false, createFeedWriter: false);
-            testResponseOfSingleton.Throws<ODataException>(Strings.ODataJsonLightWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
+            testResponseOfSingleton.Throws<ODataException>(Strings.ODataJsonWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
 
             Action testRequest = () => this.WriteAnnotationsAndValidatePayload(action, EntitySet, format, null, request: true, createFeedWriter: false);
-            testRequest.Throws<ODataException>(Strings.ODataJsonLightWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
+            testRequest.Throws<ODataException>(Strings.ODataJsonWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
 
             Action testRequestOfSingleton = () => this.WriteAnnotationsAndValidatePayload(action, Singleton, format, null, request: true, createFeedWriter: false);
-            testRequestOfSingleton.Throws<ODataException>(Strings.ODataJsonLightWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
+            testRequestOfSingleton.Throws<ODataException>(Strings.ODataJsonWriter_InstanceAnnotationNotSupportedOnExpandedResourceSet);
         }
 
         #endregion Writing instance annotations on expanded feeds
@@ -624,7 +625,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         #region OData Simplified
 
         [Fact]
-        public void WriteSimplifiedAnnotationAtStartOnTopLevelFeedAsResponseInJsonLight()
+        public void WriteSimplifiedAnnotationAtStartOnTopLevelFeedAsResponseInJson()
         {
             string expectedPayload =
             "{" +
@@ -640,7 +641,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
         }
 
         [Fact]
-        public void WriteSimplifiedDeltaLinkAtStartOnTopLevelFeedAsResponseInJsonLight()
+        public void WriteSimplifiedDeltaLinkAtStartOnTopLevelFeedAsResponseInJson()
         {
             string expectedPayload =
             "{" +
@@ -699,12 +700,15 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
 
         private void WriteAnnotationsAndValidatePayload(Action<ODataWriter> action, IEdmNavigationSource navigationSource, ODataFormat format, string expectedPayload, bool request, bool createFeedWriter, bool enableWritingODataAnnotationWithoutPrefix = false, IEdmStructuredType resourceType = null)
         {
-            var writerSettings = new ODataMessageWriterSettings { EnableMessageStreamDisposal = false };
+            var writerSettings = new ODataMessageWriterSettings {
+                EnableMessageStreamDisposal = false
+            };
+            writerSettings.SetOmitODataPrefix(enableWritingODataAnnotationWithoutPrefix);
             writerSettings.SetContentType(format);
             writerSettings.SetServiceDocumentUri(new Uri("http://www.example.com/"));
 
-            var container = ContainerBuilderHelper.BuildContainer(null);
-            container.GetRequiredService<ODataSimplifiedOptions>().SetOmitODataPrefix(
+            var serviceProvider = ServiceProviderHelper.BuildServiceProvider(null);
+            serviceProvider.GetRequiredService<ODataMessageWriterSettings>().SetOmitODataPrefix(
                 enableWritingODataAnnotationWithoutPrefix);
 
             MemoryStream stream = new MemoryStream();
@@ -715,7 +719,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
                 {
                     Method = "GET",
                     Stream = stream,
-                    Container = container
+                    ServiceProvider = serviceProvider
                 };
                 using (var messageWriter = new ODataMessageWriter(requestMessageToWrite, writerSettings, Model))
                 {
@@ -731,7 +735,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Writer
                 {
                     StatusCode = 200,
                     Stream = stream,
-                    Container = container
+                    ServiceProvider = serviceProvider
                 };
                 responseMessageToWrite.PreferenceAppliedHeader().AnnotationFilter = "*";
                 using (var messageWriter = new ODataMessageWriter(responseMessageToWrite, writerSettings, Model))

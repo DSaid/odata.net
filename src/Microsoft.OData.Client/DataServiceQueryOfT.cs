@@ -185,7 +185,7 @@ namespace Microsoft.OData.Client
         public virtual string AppendRequestUri(string nextSegment)
         {
             Uri requestUri = this.RequestUri;
-            return UriUtil.UriToString(requestUri).Replace(requestUri.AbsolutePath, requestUri.AbsolutePath + UriHelper.FORWARDSLASH + nextSegment);
+            return UriUtil.UriToString(requestUri).Replace(requestUri.AbsolutePath, requestUri.AbsolutePath + UriHelper.FORWARDSLASH + nextSegment, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -326,23 +326,6 @@ namespace Microsoft.OData.Client
                     Expression.Convert(this.Expression, typeof(DataServiceQuery<TElement>.DataServiceOrderedQuery)),
                     mi,
                     new Expression[] { navigationPropertyAccessor }));
-        }
-
-        /// <summary>Requests that the count of all entities in the entity set be returned inline with the query results.</summary>
-        /// <returns>A new <see cref="Microsoft.OData.Client.DataServiceQuery{TElement}" /> object that has the inline count option set.</returns>
-        [Obsolete("Please use IncludeCount()")]
-        public virtual DataServiceQuery<TElement> IncludeTotalCount()
-        {
-            return this.IncludeCount(true);
-        }
-
-        /// <summary>Requests that the count of all entities in the entity set be returned inline with the query results.</summary>
-        /// <returns>A new <see cref="Microsoft.OData.Client.DataServiceQuery{TElement}" /> object that has the inline count option set.</returns>
-        /// <param name="countQuery">Whether to include total count.</param>
-        [Obsolete("Please use IncludeCount(bool countQuery)")]
-        public virtual DataServiceQuery<TElement> IncludeTotalCount(bool countQuery)
-        {
-            return this.IncludeCount(countQuery);
         }
 
         /// <summary>Requests that the count of all entities in the entity set be returned inline with the query results.</summary>

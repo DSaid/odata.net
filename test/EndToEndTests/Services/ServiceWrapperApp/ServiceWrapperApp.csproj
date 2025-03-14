@@ -6,7 +6,7 @@
     <RootNamespace>ServiceWrapperApp</RootNamespace>
     <AssemblyName>ServiceWrapperApp</AssemblyName>
     <AssemblyAttributeClsCompliant>false</AssemblyAttributeClsCompliant>
-    <TargetFrameworks>net452</TargetFrameworks>
+    <TargetFrameworks>net48</TargetFrameworks>
     <AssemblyAttributeClsCompliant>false</AssemblyAttributeClsCompliant>
     <RestorePackages>true</RestorePackages>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -37,12 +37,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.0.0" />
-    <PackageReference Include="Microsoft.VisualStudio.TestPlatform" Version="14.0.0" />
-    <!--<PackageReference Include="MSTest.TestFramework" Version="2.1.0" />
-    <PackageReference Include="MSTest.TestAdapter" Version="2.1.0" />-->
-   </ItemGroup>
-   <ItemGroup>
-   
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />

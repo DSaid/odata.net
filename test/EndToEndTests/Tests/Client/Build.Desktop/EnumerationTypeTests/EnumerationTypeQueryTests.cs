@@ -20,7 +20,7 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
     /// <summary>
     /// Send query and verify the results from the service implemented using ODataLib and EDMLib.
     /// </summary>
-    public class EnumerationTypeQueryTests : ODataWCFServiceTestsBase<InMemoryEntities>
+    public class EnumerationTypeQueryTests : ODataWCFServiceTestsBase<InMemoryEntities>, IDisposable
     {
         private static string NameSpacePrefix = "Microsoft.Test.OData.Services.ODataWCFService.";
 
@@ -66,8 +66,8 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
                         Assert.Equal(ODataReaderState.Completed, reader.State);
                         Assert.Equal(5, entries.Count);
 
-                        ODataEnumValue skinColor = (ODataEnumValue)entries[1].Properties.Single(p => p.Name == "SkinColor").Value;
-                        ODataEnumValue userAccess = (ODataEnumValue)entries[1].Properties.Single(p => p.Name == "UserAccess").Value;
+                        ODataEnumValue skinColor = Assert.IsType<ODataEnumValue>(Assert.IsType<ODataProperty>(entries[1].Properties.Single(p => p.Name == "SkinColor")).Value);
+                        ODataEnumValue userAccess = Assert.IsType<ODataEnumValue>(Assert.IsType<ODataProperty>(entries[1].Properties.Single(p => p.Name == "UserAccess")).Value);
                         Assert.Equal("Blue", skinColor.Value);
                         Assert.Equal("ReadWrite", userAccess.Value);
                     }
@@ -107,8 +107,8 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
                         Assert.Equal(ODataReaderState.Completed, reader.State);
                         Assert.Single(entries);
 
-                        ODataEnumValue skinColor = (ODataEnumValue)entries[0].Properties.Single(p => p.Name == "SkinColor").Value;
-                        ODataEnumValue userAccess = (ODataEnumValue)entries[0].Properties.Single(p => p.Name == "UserAccess").Value;
+                        ODataEnumValue skinColor = Assert.IsType<ODataEnumValue>(Assert.IsType<ODataProperty>(entries[0].Properties.Single(p => p.Name == "SkinColor")).Value);
+                        ODataEnumValue userAccess = Assert.IsType<ODataEnumValue>(Assert.IsType<ODataProperty>(entries[0].Properties.Single(p => p.Name == "UserAccess")).Value);
                         Assert.Equal("Blue", skinColor.Value);
                         Assert.Equal("ReadWrite", userAccess.Value);
                     }
@@ -269,9 +269,9 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
                         Assert.Equal(ODataReaderState.Completed, reader.State);
                         Assert.Equal(3, entries.Count);
 
-                        Assert.Equal(6, entries[0].Properties.Single(p => p.Name == "ProductID").Value);
-                        Assert.Equal(7, entries[1].Properties.Single(p => p.Name == "ProductID").Value);
-                        Assert.Equal(9, entries[2].Properties.Single(p => p.Name == "ProductID").Value);
+                        Assert.Equal(6, Assert.IsType<ODataProperty>(entries[0].Properties.Single(p => p.Name == "ProductID")).Value);
+                        Assert.Equal(7, Assert.IsType<ODataProperty>(entries[1].Properties.Single(p => p.Name == "ProductID")).Value);
+                        Assert.Equal(9, Assert.IsType<ODataProperty>(entries[2].Properties.Single(p => p.Name == "ProductID")).Value);
                     }
                 }
             }
@@ -309,11 +309,11 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
                         Assert.Equal(ODataReaderState.Completed, reader.State);
                         Assert.Equal(5, entries.Count);
 
-                        Assert.Equal(5, entries[0].Properties.Single(p => p.Name == "ProductID").Value);
-                        Assert.Equal(7, entries[1].Properties.Single(p => p.Name == "ProductID").Value);
-                        Assert.Equal(8, entries[2].Properties.Single(p => p.Name == "ProductID").Value);
-                        Assert.Equal(9, entries[3].Properties.Single(p => p.Name == "ProductID").Value);
-                        Assert.Equal(6, entries[4].Properties.Single(p => p.Name == "ProductID").Value);
+                        Assert.Equal(5, Assert.IsType<ODataProperty>(entries[0].Properties.Single(p => p.Name == "ProductID")).Value);
+                        Assert.Equal(7, Assert.IsType<ODataProperty>(entries[1].Properties.Single(p => p.Name == "ProductID")).Value);
+                        Assert.Equal(8, Assert.IsType<ODataProperty>(entries[2].Properties.Single(p => p.Name == "ProductID")).Value);
+                        Assert.Equal(9, Assert.IsType<ODataProperty>(entries[3].Properties.Single(p => p.Name == "ProductID")).Value);
+                        Assert.Equal(6, Assert.IsType<ODataProperty>(entries[4].Properties.Single(p => p.Name == "ProductID")).Value);
                     }
                 }
             }
@@ -598,5 +598,10 @@ namespace Microsoft.Test.OData.Tests.Client.EnumerationTypeTests
 #endif
 
         #endregion
+
+        public override void Dispose()
+        {
+            base.Dispose();
+        }
     }
 }

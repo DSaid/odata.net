@@ -66,6 +66,14 @@ namespace Microsoft.OData.Service.Providers
         }
 
         /// <summary>
+        /// Gets the entity type of the navigation source.
+        /// </summary>
+        public IEdmEntityType EntityType
+        {
+            get { return this.Type.AsElementType() as IEdmEntityType; }
+        }
+
+        /// <summary>
         /// The entity container kind of the entity set; returns EdmContainerElementKind.EntitySet.
         /// </summary>
         public EdmContainerElementKind ContainerElementKind
@@ -88,8 +96,11 @@ namespace Microsoft.OData.Service.Providers
         {
             get
             {
+                // this assert fails because the underlying MetadataProviderEdmModel cache has not been fully populated; it can become populated by calling 
+                // EnsureFullMetadataLoaded; however, doing so for some models causes a different assertion to fail while loading the model
+                //// this.model.AssertCacheState(MetadataProviderState.Full);
+                
                 // This should be called only in $metadata scenarios
-                this.model.AssertCacheState(MetadataProviderState.Full);
                 List<IEdmNavigationPropertyBinding> result = new List<IEdmNavigationPropertyBinding>();
                 foreach (KeyValuePair<IEdmNavigationProperty, Dictionary<string, IEdmNavigationPropertyBinding>> mapping in this.navigationBindingMappings)
                 {

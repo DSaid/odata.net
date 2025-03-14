@@ -12,7 +12,6 @@ namespace Microsoft.OData.Json
     using System.Diagnostics.CodeAnalysis;
     using System.Globalization;
     using System.IO;
-    using System.Text;
     using System.Threading.Tasks;
     using System.Xml;
     using Microsoft.OData.Buffers;
@@ -381,7 +380,7 @@ namespace Microsoft.OData.Json
         /// <param name="stringEscapeOption">The string escape option.</param>
         /// <param name="buffer">Char buffer to use for streaming data.</param>
         /// <param name="bufferPool">Array pool for renting a buffer.</param>
-        internal static async Task WriteEscapedJsonStringValueAsync(
+        internal static Task WriteEscapedJsonStringValueAsync(
             this TextWriter writer,
             string inputString,
             ODataStringEscapeOption stringEscapeOption,
@@ -394,45 +393,58 @@ namespace Microsoft.OData.Json
             int firstIndex;
             if (!CheckIfStringHasSpecialChars(inputString, stringEscapeOption, out firstIndex))
             {
-                await writer.WriteAsync(inputString).ConfigureAwait(false);
+                return writer.WriteAsync(inputString);
             }
             else
             {
                 Debug.Assert(firstIndex < inputString.Length, "First index of the special character should be within the string");
-                buffer.Value = BufferUtils.InitializeBufferIfRequired(bufferPool, buffer.Value);
-                int bufferLength = buffer.Value.Length;
-                int bufferIndex = 0;
-                int currentIndex = 0;
 
-                // Let's copy and flush strings up to the first index of the special char
-                while (currentIndex < firstIndex)
+                return WriteEscapedJsonStringValueInnerAsync(writer, inputString, stringEscapeOption, buffer, bufferPool, firstIndex);
+
+                async Task WriteEscapedJsonStringValueInnerAsync(
+                    TextWriter innerWriter,
+                    string innerInputString,
+                    ODataStringEscapeOption innerStringEscapeOption,
+                    Ref<char[]> innerBuffer,
+                    ICharArrayPool innerBufferPool,
+                    int innerFirstIndex)
                 {
-                    int substrLength = firstIndex - currentIndex;
+                    innerBuffer.Value = BufferUtils.InitializeBufferIfRequired(innerBufferPool, innerBuffer.Value);
+                    int bufferLength = innerBuffer.Value.Length;
+                    Ref<int> bufferIndex = new Ref<int>(0);
+                    Ref<int> currentIndex = new Ref<int>(0);
 
-                    Debug.Assert(substrLength > 0, "SubStrLength should be greater than 0 always");
-
-                    // If the first index of the special character is larger than the buffer length,
-                    // flush everything to the buffer first and reset the buffer to the next chunk.
-                    // Otherwise copy to the buffer and go on from there.
-                    if (substrLength >= bufferLength)
+                    // Let's copy and flush strings up to the first index of the special char
+                    while (currentIndex.Value < innerFirstIndex)
                     {
-                        inputString.CopyTo(currentIndex, buffer.Value, 0, bufferLength);
-                        await writer.WriteAsync(buffer.Value, 0, bufferLength).ConfigureAwait(false);
-                        currentIndex += bufferLength;
+                        int substrLength = innerFirstIndex - currentIndex.Value;
+
+                        Debug.Assert(substrLength > 0, "SubStrLength should be greater than 0 always");
+
+                        // If the first index of the special character is larger than the buffer length,
+                        // flush everything to the buffer first and reset the buffer to the next chunk.
+                        // Otherwise copy to the buffer and go on from there.
+                        if (substrLength >= bufferLength)
+                        {
+                            innerInputString.CopyTo(currentIndex.Value, innerBuffer.Value, 0, bufferLength);
+                            await innerWriter.WriteAsync(innerBuffer.Value, 0, bufferLength).ConfigureAwait(false);
+                            currentIndex.Value += bufferLength;
+                        }
+                        else
+                        {
+                            WriteSubstringToBuffer(innerInputString, currentIndex, innerBuffer.Value, bufferIndex, substrLength);
+                        }
                     }
-                    else
+
+                    // Write escaped string to buffer
+                    await WriteEscapedStringToBufferAsync(innerWriter, innerInputString, currentIndex, innerBuffer.Value, bufferIndex, innerStringEscapeOption)
+                        .ConfigureAwait(false);
+
+                    // write any remaining chars to the writer
+                    if (bufferIndex.Value > 0)
                     {
-                        WriteSubstringToBuffer(inputString, ref currentIndex, buffer.Value, ref bufferIndex, substrLength);
+                        await innerWriter.WriteAsync(innerBuffer.Value, 0, bufferIndex.Value).ConfigureAwait(false);
                     }
-                }
-
-                // Write escaped string to buffer
-                WriteEscapedStringToBuffer(writer, inputString, ref currentIndex, buffer.Value, ref bufferIndex, stringEscapeOption);
-
-                // write any remaining chars to the writer
-                if (bufferIndex > 0)
-                {
-                    await writer.WriteAsync(buffer.Value, 0, bufferIndex).ConfigureAwait(false);
                 }
             }
         }
@@ -456,15 +468,18 @@ namespace Microsoft.OData.Json
             Ref<char[]> buffer,
             ICharArrayPool bufferPool)
         {
-            int bufferIndex = 0;
+            Ref<int> bufferIndex = new Ref<int>(0);
+            Ref<int> inputArrayOffsetRef = new Ref<int>(inputArrayOffset);
             buffer.Value = BufferUtils.InitializeBufferIfRequired(bufferPool, buffer.Value);
         
-            WriteEscapedCharArrayToBuffer(writer, inputArray, ref inputArrayOffset, inputArrayCount, buffer.Value, ref bufferIndex, stringEscapeOption);
+            await WriteEscapedCharArrayToBufferAsync(writer, inputArray, inputArrayOffsetRef, inputArrayCount, buffer.Value, bufferIndex, stringEscapeOption)
+                .ConfigureAwait(false);
+           
 
             // write remaining bytes in buffer
-            if (bufferIndex > 0)
+            if (bufferIndex.Value > 0)
             {
-                await writer.WriteAsync(buffer.Value, 0, bufferIndex).ConfigureAwait(false);
+                await writer.WriteAsync(buffer.Value, 0, bufferIndex.Value).ConfigureAwait(false);
             }
         }
 
@@ -477,6 +492,136 @@ namespace Microsoft.OData.Json
         {
             return writer.WriteAsync(
                 string.Concat(JsonConstants.QuoteCharacter, text, JsonConstants.QuoteCharacter));
+        }
+
+        /// <summary>
+        /// Writes an escaped string to the buffer.
+        /// </summary>
+        /// <param name="writer">The text writer to write the output.</param>
+        /// <param name="inputString">Input string value.</param>
+        /// <param name="currentIndex">The index in the string at which copying should begin.</param>
+        /// <param name="buffer">Char buffer to use for streaming data.</param>
+        /// <param name="bufferIndex">Current position in the buffer after the string has been written.</param>
+        /// <param name="stringEscapeOption">The string escape option.</param>
+        /// <remarks>
+        /// IMPORTANT: After all characters have been written,
+        /// caller is responsible for writing the final buffer contents to the writer.
+        /// </remarks>
+        private static async Task WriteEscapedStringToBufferAsync(
+            TextWriter writer,
+            string inputString,
+            Ref<int> currentIndex,
+            char[] buffer,
+            Ref<int> bufferIndex,
+            ODataStringEscapeOption stringEscapeOption)
+        {
+            Debug.Assert(inputString != null, "inputString != null");
+            Debug.Assert(buffer != null, "buffer != null");
+
+            for (; currentIndex.Value < inputString.Length; currentIndex.Value++)
+            {
+                bufferIndex.Value = await EscapeAndWriteCharToBufferAsync(
+                    writer,
+                    inputString[currentIndex.Value],
+                    buffer,
+                    bufferIndex.Value,
+                    stringEscapeOption
+                    )
+                    .ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Escapes and writes a character buffer, flushing to the writer as the buffer fills.
+        /// </summary>
+        /// <param name="writer">The text writer to write the output to.</param>
+        /// <param name="character">The character to write to the buffer.</param>
+        /// <param name="buffer">Char buffer to use for streaming data.</param>
+        /// <param name="bufferIndex">The index into the buffer in which to write the character.</param>
+        /// <param name="stringEscapeOption">The string escape option.</param>
+        /// <returns>Current position in the buffer after the character has been written.</returns>
+        /// <remarks>
+        /// IMPORTANT: After all characters have been written,
+        /// caller is responsible for writing the final buffer contents to the writer.
+        /// </remarks>
+        private static async Task<int> EscapeAndWriteCharToBufferAsync(TextWriter writer, char character, char[] buffer, int bufferIndex, ODataStringEscapeOption stringEscapeOption)
+        {
+            int bufferLength = buffer.Length;
+            string escapedString = null;
+
+            if (stringEscapeOption == ODataStringEscapeOption.EscapeNonAscii || character <= 0x7F)
+            {
+                escapedString = JsonValueUtils.SpecialCharToEscapedStringMap[character];
+            }
+
+            // Append the unhandled characters (that do not require special treatment)
+            // to the buffer.
+            if (escapedString == null)
+            {
+                buffer[bufferIndex] = character;
+                bufferIndex++;
+            }
+            else
+            {
+                // Okay, an unhandled character was detected.
+                // First lets check if we can fit it in the existing buffer, if not,
+                // flush the current buffer and reset. Add the escaped string to the buffer
+                // and continue.
+                int escapedStringLength = escapedString.Length;
+                Debug.Assert(escapedStringLength <= bufferLength, "Buffer should be larger than the escaped string");
+
+                if ((bufferIndex + escapedStringLength) > bufferLength)
+                {
+                    await writer.WriteAsync(buffer, 0, bufferIndex).ConfigureAwait(false);
+                    bufferIndex = 0;
+                }
+
+                escapedString.CopyTo(0, buffer, bufferIndex, escapedStringLength);
+                bufferIndex += escapedStringLength;
+            }
+
+            if (bufferIndex >= bufferLength)
+            {
+                Debug.Assert(bufferIndex == bufferLength,
+                    "We should never encounter a situation where the buffer index is greater than the buffer length");
+                await writer.WriteAsync(buffer, 0, bufferIndex).ConfigureAwait(false);
+                bufferIndex = 0;
+            }
+
+            return bufferIndex;
+        }
+
+        /// <summary>
+        /// Writes an escaped char array to the buffer.
+        /// </summary>
+        /// <param name="writer">The text writer to write the output to.</param>
+        /// <param name="inputArray">Character array to write.</param>
+        /// <param name="inputArrayOffset">How many characters to skip in the input array.</param>
+        /// <param name="inputArrayCount">How many characters to write from the input array.</param>
+        /// <param name="buffer">Char buffer to use for streaming data.</param>
+        /// <param name="bufferIndex">Current position in the buffer after the string has been written.</param>
+        /// <param name="stringEscapeOption">The string escape option.</param>
+        /// <remarks>
+        /// IMPORTANT: After all characters have been written,
+        /// caller is responsible for writing the final buffer contents to the writer.
+        /// </remarks>
+        private static async Task WriteEscapedCharArrayToBufferAsync(
+            TextWriter writer,
+            char[] inputArray,
+            Ref<int> inputArrayOffset,
+            int inputArrayCount,
+            char[] buffer,
+            Ref<int> bufferIndex,
+            ODataStringEscapeOption stringEscapeOption)
+        {
+            Debug.Assert(inputArray != null, "inputArray != null");
+            Debug.Assert(buffer != null, "buffer != null");
+
+            for (; inputArrayOffset.Value < inputArrayCount; inputArrayOffset.Value++)
+            {
+                bufferIndex.Value = await EscapeAndWriteCharToBufferAsync(writer, inputArray[inputArrayOffset.Value], buffer, bufferIndex.Value, stringEscapeOption)
+                    .ConfigureAwait(false);
+            }
         }
     }
 }

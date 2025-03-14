@@ -10,9 +10,10 @@ namespace Microsoft.Test.OData.PluggableFormat.VCard.Test
 {
     using System;
     using System.IO;
+    using Microsoft.Extensions.DependencyInjection;
     using Microsoft.OData;
+    using Microsoft.OData.Core.Tests.DependencyInjection;
     using Microsoft.OData.Edm;
-    using Microsoft.Test.OData.DependencyInjection;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -32,8 +33,8 @@ namespace Microsoft.Test.OData.PluggableFormat.VCard.Test
             VCardModel = TestHelper.GetModel(ResModel);
             VCardType = (IEdmComplexType)VCardModel.FindType("VCard21.VCard");
 
-            container = ContainerBuilderHelper.BuildContainer(builder =>
-                builder.AddService<ODataMediaTypeResolver, VCardMediaTypeResolver>(ServiceLifetime.Singleton));
+            container = ServiceProviderHelper.BuildServiceProvider(builder =>
+                builder.AddSingleton<ODataMediaTypeResolver, VCardMediaTypeResolver>());
         }
 
         [TestMethod]

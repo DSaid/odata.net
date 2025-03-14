@@ -20,8 +20,8 @@ namespace Microsoft.OData.Tests
     public class ODataRawOutputContextApiTests
     {
         private const string ServiceUri = "http://tempuri.org";
-        private readonly MemoryStream asyncStream;
-        private readonly MemoryStream syncStream;
+        private readonly Stream asyncStream;
+        private readonly Stream syncStream;
         private readonly ODataMessageWriterSettings writerSettings;
 
         private EdmModel model;
@@ -31,7 +31,7 @@ namespace Microsoft.OData.Tests
         public ODataRawOutputContextApiTests()
         {
             this.InitializeEdmModel();
-            this.asyncStream = new MemoryStream();
+            this.asyncStream = new AsyncStream(new MemoryStream());
             this.syncStream = new MemoryStream();
             this.writerSettings = new ODataMessageWriterSettings
             {
@@ -69,13 +69,13 @@ namespace Microsoft.OData.Tests
             };
 
             IODataResponseMessage asyncResponseMessage = new InMemoryMessage { StatusCode = 200, Stream = this.asyncStream };
-            using (var messageWriter = new ODataMessageWriter(asyncResponseMessage, writerSettings))
+            await using (var messageWriter = new ODataMessageWriter(asyncResponseMessage, writerSettings))
             {
                 var asynchronousWriter = await messageWriter.CreateODataAsynchronousWriterAsync();
                 var responseMessage = await asynchronousWriter.CreateResponseMessageAsync();
                 responseMessage.StatusCode = 200;
 
-                using (var nestedMessageWriter = new ODataMessageWriter(responseMessage, nestedWriterSettings, this.model))
+                await using (var nestedMessageWriter = new ODataMessageWriter(responseMessage, nestedWriterSettings, this.model))
                 {
                     var writer = await nestedMessageWriter.CreateODataResourceWriterAsync(this.customerEntitySet, this.customerEntityType);
 
@@ -161,7 +161,7 @@ Content-Type: application/json;odata.metadata=minimal;odata.streaming=true;IEEE7
         public async Task WriteValue_APIsShouldYieldSameResult(object value, string expected)
         {
             IODataResponseMessage asyncResponseMessage = new InMemoryMessage { StatusCode = 200, Stream = this.asyncStream };
-            using (var messageWriter = new ODataMessageWriter(asyncResponseMessage, writerSettings))
+            await using (var messageWriter = new ODataMessageWriter(asyncResponseMessage, writerSettings))
             {
                 await messageWriter.WriteValueAsync(value);
             }
@@ -199,7 +199,7 @@ Content-Type: application/json;odata.metadata=minimal;odata.streaming=true;IEEE7
             var asyncException = await Assert.ThrowsAsync<ODataException>(async () =>
             {
                 IODataResponseMessage asyncResponseMessage = new InMemoryMessage { StatusCode = 200, Stream = this.asyncStream };
-                using (var messageWriter = new ODataMessageWriter(asyncResponseMessage, writerSettings))
+                await using (var messageWriter = new ODataMessageWriter(asyncResponseMessage, writerSettings))
                 {
                     // Call to CreateODataAsynchronousWriterAsync triggers setting of output in-stream error listener
                     var asynchronousWriter = await messageWriter.CreateODataAsynchronousWriterAsync();
@@ -207,13 +207,13 @@ Content-Type: application/json;odata.metadata=minimal;odata.streaming=true;IEEE7
                     responseMessage.StatusCode = 200;
 
                     // Next section added is to demonstrate that what was already written is flushed to the buffer before exception is thrown
-                    using (var nestedMessageWriter = new ODataMessageWriter(responseMessage, nestedWriterSettings))
+                    await using (var nestedMessageWriter = new ODataMessageWriter(responseMessage, nestedWriterSettings))
                     {
                         var writer = await nestedMessageWriter.CreateODataResourceWriterAsync();
                     }
 
                     await messageWriter.WriteErrorAsync(
-                        new ODataError { ErrorCode = "NRE", Message = "Object reference not set to an instance of an object." },
+                        new ODataError { Code = "NRE", Message = "Object reference not set to an instance of an object." },
                         /*includeDebugInformation*/ true);
                 }
             });
@@ -239,7 +239,7 @@ Content-Type: application/json;odata.metadata=minimal;odata.streaming=true;IEEE7
                         }
 
                         messageWriter.WriteError(
-                            new ODataError { ErrorCode = "NRE", Message = "Object reference not set to an instance of an object." },
+                            new ODataError { Code = "NRE", Message = "Object reference not set to an instance of an object." },
                             /*includeDebugInformation*/ true);
                     }
                 }));

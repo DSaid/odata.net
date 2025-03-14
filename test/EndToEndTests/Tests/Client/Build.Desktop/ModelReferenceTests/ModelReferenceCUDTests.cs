@@ -16,7 +16,7 @@ namespace Microsoft.Test.OData.Tests.Client.ModelReferenceTests
     using Microsoft.Test.OData.Tests.Client.Common;
     using Xunit;
 
-    public class ModelReferenceCUDTests : ODataWCFServiceTestsBase<InMemoryEntities>
+    public class ModelReferenceCUDTests : ODataWCFServiceTestsBase<InMemoryEntities>, IDisposable
     {
         private const string TestModelNameSpace = "Microsoft.OData.SampleService.Models.ModelRefDemo";
 
@@ -58,7 +58,7 @@ namespace Microsoft.Test.OData.Tests.Client.ModelReferenceTests
                 // Verify Created
                 Assert.Equal(201, responseMessage.StatusCode);
                 ODataResource entry = this.QueryEntityItem("VehicleGPSSet('000')") as ODataResource;
-                Assert.Equal("000", entry.Properties.Single(p => p.Name == "Key").Value);
+                Assert.Equal("000", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "Key")).Value);
 
                 // Delete the entry
                 var deleteRequestMessage = new HttpWebRequestMessage(new Uri(ServiceBaseUri + "VehicleGPSSet('000')"));
@@ -105,7 +105,7 @@ namespace Microsoft.Test.OData.Tests.Client.ModelReferenceTests
                 // Verify Created
                 Assert.Equal(201, responseMessage.StatusCode);
                 ODataResource entry = this.QueryEntityItem("VehicleGPSSetInGPS('000')") as ODataResource;
-                Assert.Equal("000", entry.Properties.Single(p => p.Name == "Key").Value);
+                Assert.Equal("000", Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "Key")).Value);
 
                 // Delete the entry
                 var deleteRequestMessage = new HttpWebRequestMessage(new Uri(ServiceBaseUri + "VehicleGPSSetInGPS('000')"));
@@ -340,7 +340,7 @@ namespace Microsoft.Test.OData.Tests.Client.ModelReferenceTests
             ODataMessageReaderSettings readerSettings = new ODataMessageReaderSettings() { BaseUri = ServiceBaseUri };
 
             var queryRequestMessage = new HttpWebRequestMessage(new Uri(ServiceBaseUri.AbsoluteUri + uri, UriKind.Absolute));
-            queryRequestMessage.SetHeader("Accept", MimeTypes.ApplicationJsonLight);
+            queryRequestMessage.SetHeader("Accept", MimeTypes.ApplicationJson);
             var queryResponseMessage = queryRequestMessage.GetResponse();
             Assert.Equal(expectedStatusCode, queryResponseMessage.StatusCode);
 
@@ -365,5 +365,10 @@ namespace Microsoft.Test.OData.Tests.Client.ModelReferenceTests
             return item;
         }
         #endregion
+
+        public override void Dispose()
+        {
+            base.Dispose();
+        }
     }
 }

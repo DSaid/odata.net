@@ -32,7 +32,7 @@ namespace Microsoft.OData.Metadata
 
             XmlWriterSettings xmlWriterSettings = CreateXmlWriterSettings(messageWriterSettings, encoding);
 
-            if (stream is AsyncBufferedStream)
+            if (stream is BufferedStream)
             {
                 xmlWriterSettings.Async = true;
             }
@@ -49,9 +49,9 @@ namespace Microsoft.OData.Metadata
         /// <param name="error">The error instance to write.</param>
         /// <param name="includeDebugInformation">A flag indicating whether error details should be written (in debug mode only) or not.</param>
         /// <param name="maxInnerErrorDepth">The maximum number of nested inner errors to allow.</param>
-        internal static void WriteError(XmlWriter writer, ODataError error, bool includeDebugInformation, int maxInnerErrorDepth)
+        internal static void WriteError(XmlWriter writer, ODataError error, bool includeDebugInformation, ODataMessageWriterSettings messageWriterSettings)
         {
-            ErrorUtils.WriteXmlError(writer, error, includeDebugInformation, maxInnerErrorDepth);
+            ErrorUtils.WriteXmlError(writer, error, includeDebugInformation, messageWriterSettings);
         }
 
         /// <summary>

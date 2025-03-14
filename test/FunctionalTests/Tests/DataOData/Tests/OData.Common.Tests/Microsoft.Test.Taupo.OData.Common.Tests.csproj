@@ -4,7 +4,7 @@
     <AssemblyName>Microsoft.Test.Taupo.OData.Common.Tests</AssemblyName>    
     <SignAssemblyAttribute>false</SignAssemblyAttribute>
     <RestorePackages>true</RestorePackages>
-    <TargetFrameworks>net45</TargetFrameworks>
+    <TargetFrameworks>net48</TargetFrameworks>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
     <ShouldGenerateAssemblyAttributeFile>false</ShouldGenerateAssemblyAttributeFile>
@@ -67,7 +67,7 @@
     <Compile Include="ObjectModelTests\ODataNavigationLinkTests.cs" />
     <Compile Include="ObjectModelTests\ODataPropertyTests.cs" />
     <Compile Include="InfrastructureTests\AsyncBufferedStreamTests.cs" />
-    <Compile Include="TestCodeTests\AnnotatedPayloadElementToJsonLightConverterTests.cs" />
+    <Compile Include="TestCodeTests\AnnotatedPayloadElementToJsonConverterTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ODataCommonTests.suite">

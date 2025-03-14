@@ -39,6 +39,9 @@ namespace Microsoft.OData.Service
         /// <summary>'OData-Version' - HTTP header name for OData version.</summary>
         internal const string HttpODataVersion = "OData-Version";
 
+        /// <summary>'4.0' - the version 4.0 text for a data service.'</summary>
+        internal const string ODataVersion401 = "4.01";
+
         /// <summary>'OData-MaxVersion' - HTTP header name for maximum understood OData version.</summary>
         internal const string HttpODataMaxVersion = "OData-MaxVersion";
 
@@ -222,16 +225,16 @@ namespace Microsoft.OData.Service
         /// <summary>MIME type for ATOM bodies (http://www.iana.org/assignments/media-types/application/).</summary>
         internal const string MimeApplicationAtom = "application/atom+xml";
 
-        /// <summary>MIME type for JSON bodies in light mode with minimal metadata.</summary>
+        /// <summary>MIME type for JSON bodies with minimal metadata.</summary>
         internal const string MimeApplicationJsonODataMinimalMetadata = "application/json;odata.metadata=minimal";
 
-        /// <summary>MIME type for JSON bodies in light mode with full metadata.</summary>
+        /// <summary>MIME type for JSON bodies with full metadata.</summary>
         internal const string MimeApplicationJsonODataFullMetadata = "application/json;odata.metadata=full";
 
-        /// <summary>MIME type for JSON bodies in light mode with no metadata.</summary>
+        /// <summary>MIME type for JSON bodies with no metadata.</summary>
         internal const string MimeApplicationJsonODataNoMetadata = "application/json;odata.metadata=none";
 
-        /// <summary>MIME type for JSON bodies (implies light in V3, verbose otherwise) (http://www.iana.org/assignments/media-types/application/).</summary>
+        /// <summary>MIME type for JSON bodies (http://www.iana.org/assignments/media-types/application/).</summary>
         internal const string MimeApplicationJson = "application/json";
 
         /// <summary>MIME type for batch requests - this mime type must be specified in CUD changesets or GET batch requests.</summary>
@@ -333,6 +336,9 @@ namespace Microsoft.OData.Service
 
         /// <summary>the type of the containing object or targeted property if the type of the object or targeted property cannot be heuristically determined.</summary>
         internal const string ODataType = "@odata.type";
+
+        /// <summary>Instance annotation used to mark a failed modification operation within a bulk payload.</summary>
+        internal const string DataModificationException = "Core.DataModificationException";
 
         #endregion OData constants
 

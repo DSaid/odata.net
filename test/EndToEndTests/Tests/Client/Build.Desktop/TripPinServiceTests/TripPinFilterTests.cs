@@ -9,12 +9,13 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text.RegularExpressions;
     using Microsoft.OData;
     using Microsoft.Test.OData.Services.TestServices;
     using Microsoft.Test.OData.Tests.Client.Common;
     using Xunit;
 
-    public class TripPinFilterTests : ODataWCFServiceTestsBase<Microsoft.Test.OData.Services.TestServices.ODataWCFServiceReference.InMemoryEntities>
+    public class TripPinFilterTests : ODataWCFServiceTestsBase<Microsoft.Test.OData.Services.TestServices.ODataWCFServiceReference.InMemoryEntities>, IDisposable
     {
         private const string NameSpacePrefix = "Microsoft.OData.SampleService.Models.TripPin.";
 
@@ -31,8 +32,19 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             string uri = "People?$filter=contains(UserName,'v')";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.True(userName.ToString().Contains("v"));
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Contains("v", userName.ToString());
+            },
+            "Person");
+            #endregion
+
+            #region matchesPattern
+            uri = "People?$filter=matchesPattern(UserName,'chum$')";
+            requestAndCheckResult(uri, (item) =>
+            {
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Contains("chum", userName.ToString());
+                Assert.Matches("chum$", userName.ToString());
             },
             "Person");
             #endregion
@@ -41,9 +53,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=endswith(UserName,'chum')";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.True(userName.ToString().Contains("chum"));
-                Assert.True(userName.ToString().EndsWith("chum"));
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Contains("chum", userName.ToString());
+                Assert.EndsWith("chum", userName.ToString());
             },
             "Person");
             #endregion
@@ -52,9 +64,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=startswith(UserName,'v')";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.True(userName.ToString().Contains("v"));
-                Assert.True(userName.ToString().StartsWith("v"));
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Contains("v", userName.ToString());
+                Assert.StartsWith("v", userName.ToString());
             },
             "Person");
             #endregion
@@ -63,8 +75,8 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=length(UserName) eq 12";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.Equal(userName.ToString().Length, 12);
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Equal(12, userName.ToString().Length);
             },
             "Person");
             #endregion
@@ -73,9 +85,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=indexof(UserName,'vincent') eq 1";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.True(userName.ToString().Contains("vincent"));
-                Assert.Equal(userName.ToString().IndexOf("vincent"), 1);
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Contains("vincent", userName.ToString());
+                Assert.Equal(1, userName.ToString().IndexOf("vincent"));
             },
             "Person");
             #endregion
@@ -84,18 +96,18 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=substring(UserName,1) eq 'incentcalabrese'";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.True(userName.ToString().Contains("incentcalabrese"));
-                Assert.Equal(userName.ToString().Substring(1), "incentcalabrese");
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Contains("incentcalabrese", userName.ToString());
+                Assert.Equal("incentcalabrese", userName.ToString().Substring(1));
             },
             "Person");
 
             uri = "People?$filter=substring(UserName,1,6) eq 'incent'";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.True(userName.ToString().Contains("incent"));
-                Assert.Equal(userName.ToString().Substring(1, 6), "incent");
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Contains("incent", userName.ToString());
+                Assert.Equal("incent", userName.ToString().Substring(1, 6));
             },
             "Person");
             #endregion
@@ -104,8 +116,8 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=tolower(UserName) eq 'vincentcalabrese'";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.Equal(userName.ToString(), "vincentcalabrese");
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Equal("vincentcalabrese", userName.ToString());
             },
             "Person");
             #endregion
@@ -114,8 +126,8 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=toupper(UserName) eq 'VINCENTCALABRESE'";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.Equal(userName.ToString().ToUpper(), "VINCENTCALABRESE");
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Equal("VINCENTCALABRESE", userName.ToString().ToUpper());
             },
             "Person");
             #endregion
@@ -124,8 +136,8 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=trim(UserName) eq 'vincentcalabrese'";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.Equal(userName.ToString(), "vincentcalabrese");
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Equal("vincentcalabrese", userName.ToString());
             },
             "Person");
             #endregion
@@ -134,9 +146,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=concat(concat(FirstName,', '), LastName) eq 'Vincent, Calabrese'";
             requestAndCheckResult(uri, (item) =>
             {
-                var firstName = item.Properties.Single(p => p.Name == "FirstName").Value;
-                var lastName = item.Properties.Single(p => p.Name == "LastName").Value;
-                Assert.Equal(string.Concat(string.Concat(firstName, ", "), lastName), "Vincent, Calabrese");
+                var firstName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "FirstName")).Value;
+                var lastName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "LastName")).Value;
+                Assert.Equal("Vincent, Calabrese", string.Concat(string.Concat(firstName, ", "), lastName));
             },
             "Person");
             #endregion
@@ -149,9 +161,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             string uri = "People('russellwhyte')/Trips?$filter=year(StartsAt) eq 2014";
             requestAndCheckResult(uri, (item) =>
             {
-                var property = item.Properties.Single(p => p.Name == "StartsAt").Value;
+                var property = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "StartsAt")).Value;
                 var startTime = (DateTimeOffset)property;
-                Assert.Equal(startTime.Year, 2014);
+                Assert.Equal(2014, startTime.Year);
             });
             #endregion
 
@@ -159,9 +171,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People('russellwhyte')/Trips?$filter=month(StartsAt) eq 2";
             requestAndCheckResult(uri, (item) =>
             {
-                var property = item.Properties.Single(p => p.Name == "StartsAt").Value;
+                var property = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "StartsAt")).Value;
                 var startTime = (DateTimeOffset)property;
-                Assert.Equal(startTime.Month, 2);
+                Assert.Equal(2, startTime.Month);
             });
             #endregion
 
@@ -169,9 +181,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People('russellwhyte')/Trips?$filter=day(StartsAt) eq 1";
             requestAndCheckResult(uri, (item) =>
             {
-                var property = item.Properties.Single(p => p.Name == "StartsAt").Value;
+                var property = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "StartsAt")).Value;
                 var startTime = (DateTimeOffset)property;
-                Assert.Equal(startTime.Day, 1);
+                Assert.Equal(1, startTime.Day);
             });
             #endregion
 
@@ -179,9 +191,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People('russellwhyte')/Trips?$filter=hour(StartsAt) eq 0";
             requestAndCheckResult(uri, (item) =>
             {
-                var property = item.Properties.Single(p => p.Name == "StartsAt").Value;
+                var property = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "StartsAt")).Value;
                 var startTime = (DateTimeOffset)property;
-                Assert.Equal(startTime.Hour, 0);
+                Assert.Equal(0, startTime.Hour);
             });
             #endregion
 
@@ -189,9 +201,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People('russellwhyte')/Trips?$filter=minute(StartsAt) eq 0";
             requestAndCheckResult(uri, (item) =>
             {
-                var property = item.Properties.Single(p => p.Name == "StartsAt").Value;
+                var property = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "StartsAt")).Value;
                 var startTime = (DateTimeOffset)property;
-                Assert.Equal(startTime.Minute, 0);
+                Assert.Equal(0, startTime.Minute);
             });
             #endregion
 
@@ -199,9 +211,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People('russellwhyte')/Trips?$filter=second(StartsAt) eq 0";
             requestAndCheckResult(uri, (item) =>
             {
-                var property = item.Properties.Single(p => p.Name == "StartsAt").Value;
+                var property = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "StartsAt")).Value;
                 var startTime = (DateTimeOffset)property;
-                Assert.Equal(startTime.Second, 0);
+                Assert.Equal(0, startTime.Second);
             });
             #endregion
         }
@@ -213,7 +225,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             string uri = "People?$filter=round(12.66) eq 12";
             requestAndCheckResult(uri, (item) =>
             {
-                Assert.Equal(Math.Round(12.66), 13);
+                Assert.Equal(13, Math.Round(12.66));
             });
             #endregion
 
@@ -221,7 +233,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=floor(12.66) eq 12";
             requestAndCheckResult(uri, (item) =>
             {
-                Assert.Equal(Math.Floor(12.66), 12);
+                Assert.Equal(12, Math.Floor(12.66));
             });
             #endregion
 
@@ -229,7 +241,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=ceiling(12.66) eq 12";
             requestAndCheckResult(uri, (item) =>
             {
-                Assert.Equal(Math.Ceiling(12.66), 13);
+                Assert.Equal(13, Math.Ceiling(12.66));
             });
             #endregion
         }
@@ -241,8 +253,8 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             string uri = "People?$filter=isof(UserName,Edm.String)";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.Equal(userName.GetType(), typeof(String));
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.IsType<string>(userName);
             },
             "Person");
 
@@ -250,10 +262,9 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = string.Format("People?$filter=isof(Gender,'{0}PersonGender')", NameSpacePrefix);
             requestAndCheckResult(uri, (item) =>
             {
-                var gender = item.Properties.Single(p => p.Name == "Gender").Value;
+                var gender = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "Gender")).Value;
 
-                Assert.Equal(gender.GetType(), typeof(ODataEnumValue));
-                Assert.Equal((gender as ODataEnumValue).TypeName, "Microsoft.OData.SampleService.Models.TripPin.PersonGender");
+                Assert.Equal("Microsoft.OData.SampleService.Models.TripPin.PersonGender", Assert.IsType<ODataEnumValue>(gender).TypeName);
             },
             "Person");
 
@@ -277,32 +288,32 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = "People?$filter=cast(UserName, Edm.String) eq 'vincentcalabrese'";
             requestAndCheckResult(uri, (item) =>
             {
-                var userName = item.Properties.Single(p => p.Name == "UserName").Value;
-                Assert.Equal(userName.ToString(), "vincentcalabrese");
+                var userName = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "UserName")).Value;
+                Assert.Equal("vincentcalabrese", userName.ToString());
             },
             "Person");
 
             uri = "People('russellwhyte')/Trips?$filter=cast(TripId, Edm.Int32) eq 1001";
             requestAndCheckResult(uri, (item) =>
             {
-                var tripId = item.Properties.Single(p => p.Name == "TripId").Value;
-                Assert.Equal((int)tripId, 1001);
+                var tripId = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "TripId")).Value;
+                Assert.Equal(1001, Assert.IsType<int>(tripId));
             },
             "Trip");
 
             uri = "People('russellwhyte')/Trips?$filter=cast(TripId, Edm.String) eq '1001'";
             requestAndCheckResult(uri, (item) =>
             {
-                var tripId = item.Properties.Single(p => p.Name == "TripId").Value;
-                Assert.Equal(tripId.ToString(), "1001");
+                var tripId = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "TripId")).Value;
+                Assert.Equal("1001", tripId.ToString());
             },
             "Trip");
 
             uri = "People('russellwhyte')/Trips?$filter=cast(TripId, Edm.String) eq '1001'";
             requestAndCheckResult(uri, (item) =>
             {
-                var tripId = item.Properties.Single(p => p.Name == "TripId").Value;
-                Assert.Equal(tripId.ToString(), "1001");
+                var tripId = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "TripId")).Value;
+                Assert.Equal("1001", tripId.ToString());
             },
             "Trip");
 
@@ -318,11 +329,11 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             uri = string.Format("People?$filter=cast(Gender, Edm.String) eq 'Male'");
             requestAndCheckResult(uri, (item) =>
             {
-                var gender = item.Properties.Single(p => p.Name == "Gender").Value;
+                var gender = Assert.IsType<ODataProperty>(item.Properties.Single(p => p.Name == "Gender")).Value;
 
-                Assert.Equal(gender.GetType(), typeof(ODataEnumValue));
-                Assert.Equal((gender as ODataEnumValue).TypeName, "Microsoft.OData.SampleService.Models.TripPin.PersonGender");
-                Assert.Equal((gender as ODataEnumValue).Value, "Male");
+                var genderEnumValue = Assert.IsType<ODataEnumValue>(gender);
+                Assert.Equal("Microsoft.OData.SampleService.Models.TripPin.PersonGender", genderEnumValue.TypeName);
+                Assert.Equal("Male", genderEnumValue.Value);
             },
             "Person");
 
@@ -409,5 +420,10 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             return entries;
         }
         #endregion
+
+        public override void Dispose()
+        {
+            base.Dispose();
+        }
     }
 }

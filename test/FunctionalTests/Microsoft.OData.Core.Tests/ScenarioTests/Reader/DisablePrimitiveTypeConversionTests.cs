@@ -38,48 +38,49 @@ namespace Microsoft.OData.Tests.ScenarioTests.Reader
         }
 
         [Fact]
-        public void JsonLightShouldConvertOpenPropertyValueToPayloadSpecifiedTypeEvenIfConversionIsDisabled()
+        public void JsonShouldConvertOpenPropertyValueToPayloadSpecifiedTypeEvenIfConversionIsDisabled()
         {
-            var result = this.ReadPropertyValueInJsonLight("OpenProperty", "AQ==", "Edm.Binary", this.settingsWithConversionDisabled);
+            var result = this.ReadPropertyValueInJson("OpenProperty", "AQ==", "Edm.Binary", this.settingsWithConversionDisabled);
             Assert.True(result is byte[]);
         }
 
         [Fact]
-        public void JsonLightShouldConvertDeclaredPropertyValueToPayloadSpecifiedTypeEvenIfConversionIsDisabled()
+        public void JsonShouldConvertDeclaredPropertyValueToPayloadSpecifiedTypeEvenIfConversionIsDisabled()
         {
-            var result = this.ReadPropertyValueInJsonLight("String", "AQ==", "Edm.Binary", this.settingsWithConversionDisabled);
+            var result = this.ReadPropertyValueInJson("String", "AQ==", "Edm.Binary", this.settingsWithConversionDisabled);
             Assert.True(result is byte[]);
         }
 
         [Fact]
-        public void JsonLightShouldNotConvertDeclaredPropertyValueToMetadataTypeIfConversionIsDisabled()
+        public void JsonShouldNotConvertDeclaredPropertyValueToMetadataTypeIfConversionIsDisabled()
         {
-            var result = this.ReadPropertyValueInJsonLight("Binary", "AQ==", null, this.settingsWithConversionDisabled);
+            var result = this.ReadPropertyValueInJson("Binary", "AQ==", null, this.settingsWithConversionDisabled);
             Assert.True(result is string);
         }
 
         [Fact]
-        public void JsonLightShouldConvertDeclaredPropertyValueToMetadataTypeByDefault()
+        public void JsonShouldConvertDeclaredPropertyValueToMetadataTypeByDefault()
         {
-            var result = this.ReadPropertyValueInJsonLight("Binary", "AQ==", null, this.defaultSettings);
+            var result = this.ReadPropertyValueInJson("Binary", "AQ==", null, this.defaultSettings);
             Assert.True(result is byte[]);
         }
 
         [Fact]
-        public void JsonLightShouldFailIfPayloadTypeDoesNotMatchMetadataTypeByDefault()
+        public void JsonShouldFailIfPayloadTypeDoesNotMatchMetadataTypeByDefault()
         {
-            Action readWithWrongType = () => this.ReadPropertyValueInJsonLight("String", "AQ==", "Edm.Binary", this.defaultSettings);
+            Action readWithWrongType = () => this.ReadPropertyValueInJson("String", "AQ==", "Edm.Binary", this.defaultSettings);
             readWithWrongType.Throws<ODataException>(ODataErrorStrings.ValidationUtils_IncompatibleType("Edm.Binary", "Edm.String"));
         }
 
-        private object ReadPropertyValueInJsonLight(string propertyName, string propertyValue, string typeName, ODataMessageReaderSettings settings)
+        private object ReadPropertyValueInJson(string propertyName, string propertyValue, string typeName, ODataMessageReaderSettings settings)
         {
-            var payload = CreateJsonLightPayload(propertyName, propertyValue, typeName);
+            var payload = CreateJsonPayload(propertyName, propertyValue, typeName);
             var property = this.ReadPropertyOfEntry(payload, propertyName, settings, "application/json;odata.metadata=minimal");
-            return property.Value;
+            
+            return Assert.IsType<ODataProperty>(property).Value;
         }
 
-        private static string CreateJsonLightPayload(string propertyName, string value, string type)
+        private static string CreateJsonPayload(string propertyName, string value, string type)
         {
             const string format = @"
                 {{
@@ -91,7 +92,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Reader
         }
 
 
-        private ODataProperty ReadPropertyOfEntry(string payload, string propertyName, ODataMessageReaderSettings settings, string contentType)
+        private ODataPropertyInfo ReadPropertyOfEntry(string payload, string propertyName, ODataMessageReaderSettings settings, string contentType)
         {
             var message = new InMemoryMessage { Stream = new MemoryStream(Encoding.UTF8.GetBytes(payload)) };
             message.SetHeader("Content-Type", contentType);
@@ -105,6 +106,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Reader
 
             Assert.Contains(resource.Properties, p => p.Name == propertyName);
             var property = resource.Properties.Single(p => p.Name == propertyName);
+            
             return property;
         }
     }

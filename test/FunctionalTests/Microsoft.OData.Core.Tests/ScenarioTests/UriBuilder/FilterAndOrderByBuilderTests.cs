@@ -5,6 +5,7 @@
 //---------------------------------------------------------------------
 
 using System;
+using Microsoft.OData.UriParser;
 using Xunit;
 
 namespace Microsoft.OData.Tests.ScenarioTests.UriBuilder
@@ -18,6 +19,48 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriBuilder
             Uri queryUri = new Uri("http://gobbledygook/Pet2Set?$filter=Shape eq 'Rectangle'");
             Uri actualUri = UriBuilder(queryUri, ODataUrlKeyDelimiter.Parentheses, settings);
             Assert.Equal(queryUri, actualUri,new UriComparer<Uri>());
+        }
+
+        [Fact]
+        public void FilterUsingNonDefinedEnumMemberThrows()
+        {
+            Uri queryUri = new Uri("http://gobbledygook/Pet2Set?$filter=Shape eq 'NonDefinedShape'");
+
+            // Use default ODataUriResolver
+            ODataException exception1 = Assert.Throws<ODataException>(
+                () => UriBuilder(queryUri, ODataUrlKeyDelimiter.Parentheses, settings));
+
+            // Use StringAsEnumResolver
+            ODataException exception2 = Assert.Throws<ODataException>(
+                () => UriBuilder(queryUri, ODataUrlKeyDelimiter.Parentheses, settings, new StringAsEnumResolver { EnableCaseInsensitive = true }));
+
+            Assert.Equal("The string 'NonDefinedShape' is not a valid enumeration type constant.", exception1.Message);
+            Assert.Equal(exception1.Message, exception2.Message);
+        }
+
+        [Fact]
+        public void BuildFilterUsingEnumInInOperator()
+        {
+            Uri queryUri = new Uri("http://gobbledygook/Pet2Set?$filter=Shape in ('Rectangle', 'Triangle')");
+            Uri actualUri = UriBuilder(queryUri, ODataUrlKeyDelimiter.Parentheses, settings);
+            Assert.Equal(new Uri("http://gobbledygook/Pet2Set?$filter=Shape in %28%27Rectangle%27%2C %27Triangle%27%29"), actualUri, new UriComparer<Uri>());
+        }
+
+        [Fact]
+        public void BuildFilterUsingNonDefinedEnumInInOperatorThrows()
+        {
+            Uri queryUri = new Uri("http://gobbledygook/Pet2Set?$filter=Shape in ('NonDefinedShape', 'Triangle')");
+
+            // Use default ODataUriResolver
+            ODataException exception1 = Assert.Throws<ODataException>(
+                () => UriBuilder(queryUri, ODataUrlKeyDelimiter.Parentheses, settings));
+
+            // Use StringAsEnumResolver
+            ODataException exception2 = Assert.Throws<ODataException>(
+                () => UriBuilder(queryUri, ODataUrlKeyDelimiter.Parentheses, settings, new StringAsEnumResolver { EnableCaseInsensitive = true }));
+
+            Assert.Equal("The string 'NonDefinedShape' is not a valid enumeration type constant.", exception1.Message);
+            Assert.Equal(exception1.Message, exception2.Message);
         }
 
         [Fact]
@@ -448,6 +491,16 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriBuilder
             Uri queryUri = new Uri("People?$filter=ID in [1,2,3]", UriKind.Relative);
             Uri actualUri = UriBuilder(queryUri, ODataUrlKeyDelimiter.Parentheses, settings);
             Assert.Equal(new Uri("http://gobbledygook/People?$filter=ID%20in%20[1%2C2%2C3]"), actualUri, new UriComparer<Uri>());
+        }
+
+        [Theory]
+        [InlineData("People?$filter=Name in ('')", "http://gobbledygook/People?$filter=Name%20in%20(%27%27)")]
+        [InlineData("People?$filter=Name in ['']", "http://gobbledygook/People?$filter=Name%20in%20[%27%27]")]
+        public void BuildFilterWithInOperatorUsingCollectionWithEmptyString(string filterQuery, string expectedQuery)
+        {
+            Uri queryUri = new Uri(filterQuery, UriKind.Relative);
+            Uri actualUri = UriBuilder(queryUri, ODataUrlKeyDelimiter.Parentheses, settings);
+            Assert.Equal(new Uri(expectedQuery), actualUri, new UriComparer<Uri>());
         }
 
         [Fact]

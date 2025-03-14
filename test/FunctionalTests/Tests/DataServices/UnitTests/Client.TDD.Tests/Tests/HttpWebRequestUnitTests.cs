@@ -24,9 +24,8 @@ namespace AstoriaUnitTests.TDD.Tests.Client
         {
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://www.svc");
             IDictionary<string, string> Headers = new Dictionary<string, string>();
-            DataServiceClientRequestMessageArgs args = new DataServiceClientRequestMessageArgs(request.Method.ToString(), request.RequestUri, true, false, Headers);
+            DataServiceClientRequestMessageArgs args = new DataServiceClientRequestMessageArgs(request.Method.ToString(), request.RequestUri, true, Headers);
             new HttpClientRequestMessage(args).SetHeader(XmlConstants.HttpUserAgent, "MyUserAgent");
-            new HttpWebRequestMessage(args).SetHeader(XmlConstants.HttpUserAgent, "MyUserAgent");
         }
 
         [Fact]
@@ -34,9 +33,8 @@ namespace AstoriaUnitTests.TDD.Tests.Client
         {
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://www.svc");
             IDictionary<string, string> Headers = new Dictionary<string, string>();
-            DataServiceClientRequestMessageArgs args = new DataServiceClientRequestMessageArgs(request.Method.ToString(), request.RequestUri, true, false, Headers);
+            DataServiceClientRequestMessageArgs args = new DataServiceClientRequestMessageArgs(request.Method.ToString(), request.RequestUri, true, Headers);
             new HttpClientRequestMessage(args).SetHeader(XmlConstants.HttpAcceptCharset, "utf8");
-            new HttpWebRequestMessage(args).SetHeader(XmlConstants.HttpAcceptCharset, "utf8");
         }
 
         [Fact]
@@ -44,9 +42,8 @@ namespace AstoriaUnitTests.TDD.Tests.Client
         {
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "http://www.svc");
             IDictionary<string, string> Headers = new Dictionary<string, string>();
-            DataServiceClientRequestMessageArgs args = new DataServiceClientRequestMessageArgs(request.Method.ToString(), request.RequestUri, true, false, Headers);
+            DataServiceClientRequestMessageArgs args = new DataServiceClientRequestMessageArgs(request.Method.ToString(), request.RequestUri, true, Headers);
             new HttpClientRequestMessage(args).SetHeader(XmlConstants.HttpContentLength, 1.ToString(CultureInfo.InvariantCulture.NumberFormat));
-            new HttpWebRequestMessage(args).SetHeader(XmlConstants.HttpContentLength, 1.ToString(CultureInfo.InvariantCulture.NumberFormat));
         }
     }
 }

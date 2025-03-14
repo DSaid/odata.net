@@ -230,30 +230,23 @@ namespace Microsoft.OData.UriParser.Aggregation
             foreach (EndPathToken propertyToken in token.Properties)
             {
                 QueryNode bindResult = this.bindMethod(propertyToken);
-                SingleValuePropertyAccessNode property = bindResult as SingleValuePropertyAccessNode;
-                SingleComplexNode complexProperty = bindResult as SingleComplexNode;
 
-                if (property != null)
+                if (bindResult is SingleValuePropertyAccessNode property)
                 {
                     RegisterProperty(properties, ReversePropertyPath(property));
                 }
-                else if (complexProperty != null)
+                else if (bindResult is SingleComplexNode complexProperty)
                 {
                     RegisterProperty(properties, ReversePropertyPath(complexProperty));
                 }
+                else if (bindResult is SingleValueOpenPropertyAccessNode openProperty)
+                {
+                    RegisterProperty(properties, ReversePropertyPath(openProperty));
+                }
                 else
                 {
-                    SingleValueOpenPropertyAccessNode openProperty = bindResult as SingleValueOpenPropertyAccessNode;
-                    if (openProperty != null)
-                    {
-                        IEdmTypeReference type = GetTypeReferenceByPropertyName(openProperty.Name);
-                        properties.Add(new GroupByPropertyNode(openProperty.Name, openProperty, type));
-                    }
-                    else
-                    {
-                        throw new ODataException(
-                            ODataErrorStrings.ApplyBinder_GroupByPropertyNotPropertyAccessValue(propertyToken.Identifier));
-                    }
+                    throw new ODataException(
+                        ODataErrorStrings.ApplyBinder_GroupByPropertyNotPropertyAccessValue(propertyToken.Identifier));
                 }
             }
 
@@ -284,7 +277,8 @@ namespace Microsoft.OData.UriParser.Aggregation
         {
             return node.Kind == QueryNodeKind.SingleValuePropertyAccess ||
                    node.Kind == QueryNodeKind.SingleComplexNode ||
-                   node.Kind == QueryNodeKind.SingleNavigationNode;
+                   node.Kind == QueryNodeKind.SingleNavigationNode ||
+                   node.Kind == QueryNodeKind.SingleResourceCast;
         }
 
         private static Stack<SingleValueNode> ReversePropertyPath(SingleValueNode node)
@@ -292,6 +286,12 @@ namespace Microsoft.OData.UriParser.Aggregation
             Stack<SingleValueNode> result = new Stack<SingleValueNode>();
             do
             {
+                if (node.Kind == QueryNodeKind.SingleResourceCast)
+                {
+                    node = ((SingleResourceCastNode)node).Source;
+                    continue;
+                }
+
                 result.Push(node);
                 if (node.Kind == QueryNodeKind.SingleValuePropertyAccess)
                 {
@@ -299,11 +299,15 @@ namespace Microsoft.OData.UriParser.Aggregation
                 }
                 else if (node.Kind == QueryNodeKind.SingleComplexNode)
                 {
-                    node = (SingleValueNode)((SingleComplexNode)node).Source;
+                    node = ((SingleComplexNode)node).Source;
                 }
                 else if (node.Kind == QueryNodeKind.SingleNavigationNode)
                 {
-                    node = ((SingleNavigationNode)node).Source as SingleValueNode;
+                    node = ((SingleNavigationNode)node).Source;
+                }
+                else if (node.Kind == QueryNodeKind.SingleValueOpenPropertyAccess)
+                {
+                    node = ((SingleValueOpenPropertyAccessNode)node).Source;
                 }
             }
             while (node != null && IsPropertyNode(node));
@@ -349,6 +353,10 @@ namespace Microsoft.OData.UriParser.Aggregation
             else if (property.Kind == QueryNodeKind.SingleNavigationNode)
             {
                 return ((SingleNavigationNode)property).NavigationProperty.Name;
+            }
+            else if (property.Kind == QueryNodeKind.SingleValueOpenPropertyAccess)
+            {
+                return ((SingleValueOpenPropertyAccessNode)property).Name;
             }
             else
             {

@@ -794,6 +794,59 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             parse.Throws<ODataException>(ODataErrorStrings.UriParser_ExpandCountExceeded(2, 1));
         }
 
+        [Theory]
+        [InlineData("NS.Models.Menu", "NS.Models.ExtendedMenu/Panels")]
+        [InlineData("NS.Models.ExtendedMenu", "Panels")]
+        public void ExpectedNavigationSourceIsResolvedForExpandedNonContainedNavigationPropertyDeclaredOnDerivedType(string targetEdmType, string expand)
+        {
+            // Arrange
+            var model = new EdmModel();
+
+            var menuType = new EdmEntityType("NS.Models", "Menu");
+            menuType.AddKeys(menuType.AddStructuralProperty("Id", EdmPrimitiveTypeKind.Int32));
+            var panelType = new EdmEntityType("NS.Models", "Panel");
+            panelType.AddKeys(panelType.AddStructuralProperty("Id", EdmPrimitiveTypeKind.Int32));
+
+            var extendedMenuType = new EdmEntityType("NS.Models", "ExtendedMenu", menuType);
+            var extendedPanelType = new EdmEntityType("NS.Models", "ExtendedPanel", panelType);
+
+            model.AddElement(menuType);
+            model.AddElement(panelType);
+            model.AddElement(extendedMenuType);
+            model.AddElement(extendedPanelType);
+
+            var panelsNavigationProperty = extendedMenuType.AddUnidirectionalNavigation(
+                new EdmNavigationPropertyInfo
+                {
+                    Name = "Panels",
+                    Target = panelType,
+                    TargetMultiplicity = EdmMultiplicity.Many
+                });
+
+            var entityContainer = model.AddEntityContainer("Default", "Container");
+
+            var menusEntitySet = entityContainer.AddEntitySet("Menus", menuType);
+            var panelsEntitySet = entityContainer.AddEntitySet("Panels", panelType);
+
+            menusEntitySet.AddNavigationTarget(panelsNavigationProperty, panelsEntitySet);
+
+            var queryOptionsParser = new ODataQueryOptionParser(
+                model: model,
+                targetEdmType: model.FindDeclaredType(targetEdmType),
+                targetNavigationSource: menusEntitySet,
+                queryOptions: new Dictionary<string, string> { { "$expand", expand } },
+                null);
+
+            // Act
+            var selectAndExpand = queryOptionsParser.ParseSelectAndExpand();
+
+            // Assert
+            Assert.NotNull(selectAndExpand);
+            var selectedItem = Assert.Single(selectAndExpand.SelectedItems);
+            var expandedNavigationSelectItem = Assert.IsType<ExpandedNavigationSelectItem>(selectedItem);
+            Assert.Equal(expandedNavigationSelectItem.NavigationSource, panelsEntitySet);
+        }
+
         #endregion
 
         #region Interesting $expand with other options scenarios
@@ -1732,7 +1785,9 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
         // $expand=navProp/fully.qualified.type/$count($filter=prop)
         [Theory]
         [InlineData("MyPeople/Fully.Qualified.Namespace.Employee/$count($filter=ID eq 1)")]
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee/$count($filter=WorkEmail eq 'xyz@wp.com')")]
         [InlineData("MyPeople/MainAlias.Employee/$count($filter=ID eq 1)")] // With schema alias
+        [InlineData("MyPeople/MainAlias.Employee/$count($filter=WorkEmail eq 'xyz@wp.com')")] // With schema alias
         public void ExpandWithNavigationPropCountWithFilterAndFullyQualifiedTypeWorks(string query)
         {
             // Arrange
@@ -1816,6 +1871,199 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
 
             // Exception: The type Fully.Qualified.Namespace.UndefinedType is not defined in the model.
             action.Throws<ODataException>(ODataErrorStrings.ExpandItemBinder_CannotFindType("Fully.Qualified.Namespace.UndefinedType"));
+        }
+
+        // $expand=navProp/fully.qualified.type($filter=prop)
+        [Theory]
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($filter=ID eq 1)")] // ID is a property in the base type Person.
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($filter=WorkEmail eq 'xyz@wp.com')")] // WorkEmail is a property in the derived type Employee.
+        [InlineData("MyPeople/MainAlias.Employee($filter=ID eq 1)")] // With schema alias
+        [InlineData("MyPeople/MainAlias.Employee($filter=WorkEmail eq 'xyz@wp.com')")] // With schema alias
+        public void ExpandWithNavigationPropWithFilterAndFullyQualifiedTypeWorks(string query)
+        {
+            // Arrange
+            var odataQueryOptionParser = new ODataQueryOptionParser(HardCodedTestModel.TestModel,
+                HardCodedTestModel.GetDogType(), HardCodedTestModel.GetDogsSet(),
+                new Dictionary<string, string>()
+                {
+                    {"$expand", query}
+                });
+
+            // Act
+            var selectExpandClause = odataQueryOptionParser.ParseSelectAndExpand();
+
+            // Assert
+            Assert.NotNull(selectExpandClause);
+            ExpandedNavigationSelectItem expandedNavigationSelectItem = Assert.IsType<ExpandedNavigationSelectItem>(Assert.Single(selectExpandClause.SelectedItems));
+            Assert.Same(HardCodedTestModel.GetPeopleSet(), expandedNavigationSelectItem.NavigationSource);
+            Assert.NotNull(expandedNavigationSelectItem.FilterOption);
+            Assert.Equal(2, expandedNavigationSelectItem.PathToNavigationProperty.Count);
+
+            NavigationPropertySegment navPropSegment = Assert.IsType<NavigationPropertySegment>(expandedNavigationSelectItem.PathToNavigationProperty.Segments.First());
+            TypeSegment typeSegment = Assert.IsType<TypeSegment>(expandedNavigationSelectItem.PathToNavigationProperty.Segments.Last());
+            Assert.Equal("MyPeople", navPropSegment.Identifier);
+            Assert.Equal("Collection(Fully.Qualified.Namespace.Person)", navPropSegment.EdmType.FullTypeName());
+            Assert.Equal("Fully.Qualified.Namespace.Employee", typeSegment.EdmType.FullTypeName());
+
+            FilterClause filterClause = expandedNavigationSelectItem.FilterOption;
+            Assert.Equal("Fully.Qualified.Namespace.Employee", filterClause.RangeVariable.TypeReference.FullName());
+        }
+
+        // $expand=navProp/fully.qualified.type($select=prop)
+        [Theory]
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($select=Name)")] // Name is a property in the base type Person.
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($select=WorkEmail)")] // WorkEmail is a property in the derived type Employee.
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($select=WorkAddress)")] // WorkAddress is a structured property in the derived type Employee.
+        [InlineData("MyPeople/MainAlias.Employee($select=Name)")] // With schema alias
+        [InlineData("MyPeople/MainAlias.Employee($select=WorkEmail)")] // With schema alias
+        [InlineData("MyPeople/MainAlias.Employee($select=WorkAddress)")] // With schema alias
+        public void ExpandWithNavigationPropWithSelectAndFullyQualifiedTypeWorks(string query)
+        {
+            // Arrange
+            var odataQueryOptionParser = new ODataQueryOptionParser(HardCodedTestModel.TestModel,
+                HardCodedTestModel.GetDogType(), HardCodedTestModel.GetDogsSet(),
+                new Dictionary<string, string>()
+                {
+                    {"$expand", query}
+                });
+
+            // Act
+            var selectExpandClause = odataQueryOptionParser.ParseSelectAndExpand();
+
+            // Assert
+            Assert.NotNull(selectExpandClause);
+            ExpandedNavigationSelectItem expandedNavigationSelectItem = Assert.IsType<ExpandedNavigationSelectItem>(Assert.Single(selectExpandClause.SelectedItems));
+            Assert.Same(HardCodedTestModel.GetPeopleSet(), expandedNavigationSelectItem.NavigationSource);
+            Assert.NotNull(expandedNavigationSelectItem.SelectAndExpand);
+            Assert.Equal(2, expandedNavigationSelectItem.PathToNavigationProperty.Count);
+
+            NavigationPropertySegment navPropSegment = Assert.IsType<NavigationPropertySegment>(expandedNavigationSelectItem.PathToNavigationProperty.Segments.First());
+            TypeSegment typeSegment = Assert.IsType<TypeSegment>(expandedNavigationSelectItem.PathToNavigationProperty.Segments.Last());
+            Assert.Equal("MyPeople", navPropSegment.Identifier);
+            Assert.Equal("Collection(Fully.Qualified.Namespace.Person)", navPropSegment.EdmType.FullTypeName());
+            Assert.Equal("Fully.Qualified.Namespace.Employee", typeSegment.EdmType.FullTypeName());
+
+            SelectExpandClause innerSelectExpandClause = expandedNavigationSelectItem.SelectAndExpand;
+            Assert.IsType<PathSelectItem>(Assert.Single(innerSelectExpandClause.SelectedItems));
+        }
+
+        // $expand=navProp/fully.qualified.type($expand=prop)
+        [Theory]
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($expand=MyLions)")] // MyLions is a navigation property in the base type Person.
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($expand=PaintingsInOffice)")] // PaintingsInOffice is a navigation property in the derived type Employee.
+        [InlineData("MyPeople/MainAlias.Employee($expand=MyLions)")] // With schema alias
+        [InlineData("MyPeople/MainAlias.Employee($expand=PaintingsInOffice)")] // With schema alias
+        public void ExpandWithNavigationPropWithExpandAndFullyQualifiedTypeWorks(string query)
+        {
+            // Arrange
+            var odataQueryOptionParser = new ODataQueryOptionParser(HardCodedTestModel.TestModel,
+                HardCodedTestModel.GetDogType(), HardCodedTestModel.GetDogsSet(),
+                new Dictionary<string, string>()
+                {
+                    {"$expand", query}
+                });
+
+            // Act
+            var selectExpandClause = odataQueryOptionParser.ParseSelectAndExpand();
+
+            // Assert
+            Assert.NotNull(selectExpandClause);
+            ExpandedNavigationSelectItem expandedNavigationSelectItem = Assert.IsType<ExpandedNavigationSelectItem>(Assert.Single(selectExpandClause.SelectedItems));
+            Assert.Same(HardCodedTestModel.GetPeopleSet(), expandedNavigationSelectItem.NavigationSource);
+            Assert.NotNull(expandedNavigationSelectItem.SelectAndExpand);
+            Assert.Equal(2, expandedNavigationSelectItem.PathToNavigationProperty.Count);
+
+            NavigationPropertySegment navPropSegment = Assert.IsType<NavigationPropertySegment>(expandedNavigationSelectItem.PathToNavigationProperty.Segments.First());
+            TypeSegment typeSegment = Assert.IsType<TypeSegment>(expandedNavigationSelectItem.PathToNavigationProperty.Segments.Last());
+            Assert.Equal("MyPeople", navPropSegment.Identifier);
+            Assert.Equal("Collection(Fully.Qualified.Namespace.Person)", navPropSegment.EdmType.FullTypeName());
+            Assert.Equal("Fully.Qualified.Namespace.Employee", typeSegment.EdmType.FullTypeName());
+
+            SelectExpandClause innerSelectExpandClause = expandedNavigationSelectItem.SelectAndExpand;
+            Assert.IsType<ExpandedNavigationSelectItem>(Assert.Single(innerSelectExpandClause.SelectedItems));
+        }
+
+        // $expand=navProp/fully.qualified.type($orderby=prop)
+        [Theory]
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($orderby=Name)")] // Name is a property in the base type Person.
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($orderby=WorkEmail)")] // WorkEmail is a property in the derived type Employee.
+        [InlineData("MyPeople/MainAlias.Employee($orderby=Name)")] // With schema alias
+        [InlineData("MyPeople/MainAlias.Employee($orderby=WorkEmail)")] // With schema alias
+        public void ExpandWithNavigationPropWithOrderByAndFullyQualifiedTypeWorks(string query)
+        {
+            // Arrange
+            var odataQueryOptionParser = new ODataQueryOptionParser(HardCodedTestModel.TestModel,
+                HardCodedTestModel.GetDogType(), HardCodedTestModel.GetDogsSet(),
+                new Dictionary<string, string>()
+                {
+                    {"$expand", query}
+                });
+
+            // Act
+            var selectExpandClause = odataQueryOptionParser.ParseSelectAndExpand();
+
+            // Assert
+            Assert.NotNull(selectExpandClause);
+            ExpandedNavigationSelectItem expandedNavigationSelectItem = Assert.IsType<ExpandedNavigationSelectItem>(Assert.Single(selectExpandClause.SelectedItems));
+            Assert.Same(HardCodedTestModel.GetPeopleSet(), expandedNavigationSelectItem.NavigationSource);
+            Assert.NotNull(expandedNavigationSelectItem.OrderByOption);
+            Assert.Equal(2, expandedNavigationSelectItem.PathToNavigationProperty.Count);
+
+            NavigationPropertySegment navPropSegment = Assert.IsType<NavigationPropertySegment>(expandedNavigationSelectItem.PathToNavigationProperty.Segments.First());
+            TypeSegment typeSegment = Assert.IsType<TypeSegment>(expandedNavigationSelectItem.PathToNavigationProperty.Segments.Last());
+            Assert.Equal("MyPeople", navPropSegment.Identifier);
+            Assert.Equal("Collection(Fully.Qualified.Namespace.Person)", navPropSegment.EdmType.FullTypeName());
+            Assert.Equal("Fully.Qualified.Namespace.Employee", typeSegment.EdmType.FullTypeName());
+        }
+
+        // $expand=navProp/fully.qualified.type($compute=prop as ComputedProp)
+        [Theory]
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($compute=Name as CustomDetails)")] // Name is a property in the base type Person.
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($compute=WorkEmail as CustomDetails)")] // WorkEmail is a property in the derived type Employee.
+        [InlineData("MyPeople/MainAlias.Employee($compute=Name as CustomDetails)")] // With schema alias
+        [InlineData("MyPeople/MainAlias.Employee($compute=WorkEmail as CustomDetails)")] // With schema alias
+        public void ExpandWithNavigationPropWithComputeAndFullyQualifiedTypeWorks(string query)
+        {
+            // Arrange
+            var odataQueryOptionParser = new ODataQueryOptionParser(HardCodedTestModel.TestModel,
+                HardCodedTestModel.GetDogType(), HardCodedTestModel.GetDogsSet(),
+                new Dictionary<string, string>()
+                {
+                    {"$expand", query}
+                });
+
+            // Act
+            var expandClause = odataQueryOptionParser.ParseSelectAndExpand();
+
+            // Assert
+            var expandedSelectionItem = expandClause.SelectedItems.OfType<ExpandedNavigationSelectItem>().Single();
+            Assert.NotNull(expandedSelectionItem.ComputeOption);
+            Assert.Equal("CustomDetails", expandedSelectionItem.ComputeOption.ComputedItems.Single().Alias);
+        }
+
+        // $expand=navProp/fully.qualified.type($apply=aggregate({aggregateQuery}))
+        [Theory]
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($apply=aggregate(ID with max as MaxID))")] // ID is a property in the base type Person.
+        [InlineData("MyPeople/Fully.Qualified.Namespace.Employee($apply=aggregate(WorkID with max as MaxID))")] // WorkID is a property in the derived type Employee.
+        [InlineData("MyPeople/MainAlias.Employee($apply=aggregate(ID with max as MaxID))")] // With schema alias
+        [InlineData("MyPeople/MainAlias.Employee($apply=aggregate(WorkID with max as MaxID))")] // With schema alias
+        public void ExpandWithNavigationPropWithApplyAndFullyQualifiedTypeWorks(string query)
+        {
+            // Arrange
+            var odataQueryOptionParser = new ODataQueryOptionParser(HardCodedTestModel.TestModel,
+                HardCodedTestModel.GetDogType(), HardCodedTestModel.GetDogsSet(),
+                new Dictionary<string, string>()
+                {
+                    {"$expand", query}
+                });
+
+            // Act
+            var expandClause = odataQueryOptionParser.ParseSelectAndExpand();
+
+            // Assert
+            var expandedSelectionItem = expandClause.SelectedItems.OfType<ExpandedNavigationSelectItem>().Single();
+            Assert.NotNull(expandedSelectionItem.ApplyOption);
+            Assert.Equal("MaxID", (expandedSelectionItem.ApplyOption.Transformations.Single() as AggregateTransformationNode).AggregateExpressions.Single().Alias);
         }
 
         [Fact]

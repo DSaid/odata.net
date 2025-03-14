@@ -10,11 +10,11 @@ namespace Microsoft.OData.Evaluation
     using System.Collections.Generic;
     using System.Diagnostics;
     using Microsoft.OData.Edm;
-    using Microsoft.OData.JsonLight;
+    using Microsoft.OData.Json;
     using Microsoft.OData.Metadata;
 
     /// <summary>
-    /// Interface used for substitutability of the metadata-centric responsibilities of <see cref="ODataJsonLightDeserializer"/>.
+    /// Interface used for substitutability of the metadata-centric responsibilities of <see cref="ODataJsonDeserializer"/>.
     /// </summary>
     internal interface IODataMetadataContext
     {
@@ -36,7 +36,7 @@ namespace Microsoft.OData.Evaluation
         /// <summary>
         /// Gets the OData uri.
         /// </summary>
-        ODataUri ODataUri { get; }
+        ODataUriSlim? ODataUri { get; }
 
         /// <summary>
         /// Gets an entity metadata builder for the given resource.
@@ -45,7 +45,7 @@ namespace Microsoft.OData.Evaluation
         /// <param name="useKeyAsSegment">true if keys should go in separate segments in auto-generated URIs, false if they should go in parentheses.</param>
         /// <param name="isDelta">true if the payload being read is a delta payload.</param>
         /// <returns>An entity metadata builder.</returns>
-        ODataResourceMetadataBuilder GetResourceMetadataBuilderForReader(IODataJsonLightReaderResourceState resourceState, bool useKeyAsSegment, bool isDelta);
+        ODataResourceMetadataBuilder GetResourceMetadataBuilderForReader(IODataJsonReaderResourceState resourceState, bool useKeyAsSegment, bool isDelta);
 
         /// <summary>
         /// Gets the list of operations that are bindable to a type.
@@ -95,7 +95,7 @@ namespace Microsoft.OData.Evaluation
         /// <summary>
         /// The OData Uri.
         /// </summary>
-        private readonly ODataUri odataUri;
+        private readonly ODataUriSlim? odataUri;
 
         /// <summary>
         /// The service base Uri.
@@ -105,7 +105,7 @@ namespace Microsoft.OData.Evaluation
         /// <summary>
         /// The MetadataLevel.
         /// </summary>
-        private JsonLightMetadataLevel metadataLevel;
+        private JsonMetadataLevel metadataLevel;
 
         /// <summary>
         /// Constructs an ODataMetadataContext.
@@ -115,8 +115,8 @@ namespace Microsoft.OData.Evaluation
         /// <param name="metadataDocumentUri">The metadata document uri.</param>
         /// <param name="odataUri">The request Uri.</param>
         /// <remarks>This overload should only be used by the writer.</remarks>
-        public ODataMetadataContext(bool isResponse, IEdmModel model, Uri metadataDocumentUri, ODataUri odataUri)
-            : this(isResponse, /*OperationsBoundToEntityTypeMustBeContainerQualified*/ null, EdmTypeWriterResolver.Instance, model, metadataDocumentUri, odataUri)
+        public ODataMetadataContext(bool isResponse, IEdmModel model, Uri metadataDocumentUri, in ODataUriSlim? odataUri)
+            : this(isResponse, /*OperationsBoundToEntityTypeMustBeContainerQualified*/ null, EdmTypeWriterResolver.Instance, model, metadataDocumentUri, in odataUri)
         {
         }
 
@@ -136,7 +136,7 @@ namespace Microsoft.OData.Evaluation
             EdmTypeResolver edmTypeResolver,
             IEdmModel model,
             Uri metadataDocumentUri,
-            ODataUri odataUri)
+            in ODataUriSlim? odataUri)
         {
             Debug.Assert(edmTypeResolver != null, "edmTypeResolver != null");
             Debug.Assert(model != null, "model != null");
@@ -158,7 +158,7 @@ namespace Microsoft.OData.Evaluation
         /// <param name="model">The Edm model.</param>
         /// <param name="metadataDocumentUri">The metadata document Uri.</param>
         /// <param name="odataUri">The request Uri.</param>
-        /// <param name="metadataLevel">Current Json Light MetadataLevel</param>
+        /// <param name="metadataLevel">Current Json MetadataLevel</param>
         /// <remarks>This overload should only be used by the reader.</remarks>
         public ODataMetadataContext(
             bool isResponse,
@@ -166,9 +166,9 @@ namespace Microsoft.OData.Evaluation
             EdmTypeResolver edmTypeResolver,
             IEdmModel model,
             Uri metadataDocumentUri,
-            ODataUri odataUri,
-            JsonLightMetadataLevel metadataLevel)
-            : this(isResponse, operationsBoundToEntityTypeMustBeContainerQualified, edmTypeResolver, model, metadataDocumentUri, odataUri)
+            in ODataUriSlim? odataUri,
+            JsonMetadataLevel metadataLevel)
+            : this(isResponse, operationsBoundToEntityTypeMustBeContainerQualified, edmTypeResolver, model, metadataDocumentUri, in odataUri)
         {
             Debug.Assert(metadataLevel != null, "MetadataLevel != null");
 
@@ -204,7 +204,7 @@ namespace Microsoft.OData.Evaluation
             {
                 if (this.metadataDocumentUri == null)
                 {
-                    throw new ODataException(Strings.ODataJsonLightResourceMetadataContext_MetadataAnnotationMustBeInPayload(ODataAnnotationNames.ODataContext));
+                    throw new ODataException(Strings.ODataJsonResourceMetadataContext_MetadataAnnotationMustBeInPayload(ODataAnnotationNames.ODataContext));
                 }
 
                 Debug.Assert(this.metadataDocumentUri.IsAbsoluteUri, "this.metadataDocumentUri.IsAbsoluteUri");
@@ -215,7 +215,7 @@ namespace Microsoft.OData.Evaluation
         /// <summary>
         /// Gets the OData uri.
         /// </summary>
-        public ODataUri ODataUri
+        public ODataUriSlim? ODataUri
         {
             get
             {
@@ -230,7 +230,7 @@ namespace Microsoft.OData.Evaluation
         /// <param name="useKeyAsSegment">true if keys should go in separate segments in auto-generated URIs, false if they should go in parentheses.</param>
         /// <param name="isDelta">true if the payload being read is a delta payload</param>
         /// <returns>A resource metadata builder.</returns>
-        public ODataResourceMetadataBuilder GetResourceMetadataBuilderForReader(IODataJsonLightReaderResourceState resourceState, bool useKeyAsSegment, bool isDelta = false)
+        public ODataResourceMetadataBuilder GetResourceMetadataBuilderForReader(IODataJsonReaderResourceState resourceState, bool useKeyAsSegment, bool isDelta = false)
         {
             Debug.Assert(resourceState != null, "resource != null");
 
@@ -267,8 +267,7 @@ namespace Microsoft.OData.Evaluation
                     IEdmEntityType navigationSourceElementType = this.edmTypeResolver.GetElementType(navigationSource);
                     IODataResourceTypeContext typeContext =
                         ODataResourceTypeContext.Create( /*serializationInfo*/
-                            null, navigationSource, navigationSourceElementType, resourceState.ResourceTypeFromMetadata ?? resourceState.ResourceType,
-                            /*throwIfMissingTypeInfo*/ true);
+                            null, navigationSource, navigationSourceElementType, resourceState.ResourceTypeFromMetadata ?? resourceState.ResourceType);
 
                     IODataResourceMetadataContext resourceMetadataContext = ODataResourceMetadataContext.Create(
                         resource,

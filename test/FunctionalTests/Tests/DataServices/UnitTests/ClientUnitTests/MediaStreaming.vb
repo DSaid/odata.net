@@ -1317,12 +1317,11 @@ Partial Public Class ClientModule
 
             Dim sendingRequestHandler =
                 Sub(sender As Object, e As SendingRequest2EventArgs)
-                    Dim request = CType(e.RequestMessage, HttpWebRequestMessage).HttpWebRequest
+                    Dim request = CType(e.RequestMessage, HttpClientRequestMessage).HttpRequestMessage
                     If setContentLengthExplicitly Then
                         ' Checks that streaming/non-streaming is OK with different content lengths, including 0 and unset
-                        request.ContentLength = content.Length
+                        request.Content.Headers.ContentLength = content.Length
                     End If
-                    request.AllowWriteStreamBuffering = enableBuffering
                 End Sub
 
             Dim testHook = New HttpTestHookConsumer(ctx, False)

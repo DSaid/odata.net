@@ -14,6 +14,13 @@ namespace Microsoft.OData.Tests.UriParser.SemanticAst
     public class EntitySetSegmentTests
     {
         [Fact]
+        public void IdentifierByDefaultIsEntitySetName()
+        {
+            EntitySetSegment segment = new EntitySetSegment(HardCodedTestModel.GetPeopleSet());
+            Assert.Equal("People", segment.Identifier);
+        }
+
+        [Fact]
         public void TargetEdmEntitySetIsEntitySet()
         {
             EntitySetSegment segment = new EntitySetSegment(HardCodedTestModel.GetPeopleSet());
@@ -24,7 +31,7 @@ namespace Microsoft.OData.Tests.UriParser.SemanticAst
         public void TargetEdmTypeIsTypeOfEntitySet()
         {
             EntitySetSegment segment = new EntitySetSegment(HardCodedTestModel.GetPeopleSet());
-            Assert.Same(HardCodedTestModel.GetPeopleSet().EntityType(), segment.TargetEdmType);
+            Assert.Same(HardCodedTestModel.GetPeopleSet().EntityType, segment.TargetEdmType);
         }
 
         [Fact]
@@ -79,6 +86,14 @@ namespace Microsoft.OData.Tests.UriParser.SemanticAst
             BatchSegment segment3 = BatchSegment.Instance;
             Assert.False(segment1.Equals(segment2));
             Assert.False(segment1.Equals(segment3));
+        }
+
+        [Fact]
+        public void NavigationSourceIsCorrect()
+        {
+            IEdmEntitySet peopleEntitySet = HardCodedTestModel.GetPeopleSet();
+            EntitySetSegment segment = new EntitySetSegment(peopleEntitySet);
+            Assert.Same(peopleEntitySet, segment.NavigationSource);
         }
     }
 }

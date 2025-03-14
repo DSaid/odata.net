@@ -136,7 +136,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             parse.Throws<ODataException>(ODataErrorStrings.MetadataBinder_IncompatibleOperandsError("Edm.Double", "Edm.Decimal", "Equal"));
         }
 
-#if !NETCOREAPP3_1
+#if !NETCOREAPP
         [Fact]
         public void ParseFilterDecimalValuesWithOptionalSuffix()
         {
@@ -324,7 +324,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
 
         }
 
-#if !NETCOREAPP3_1
+#if !NETCOREAPP
         [Fact]
         public void ParseFilterNodeInComplexExpression()
         {
@@ -2041,6 +2041,64 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             Assert.Equal("FavoriteColors", Assert.IsType<CollectionPropertyAccessNode>(inNode.Right).Property.Name);
         }
 
+        [Theory]
+        [InlineData("'SolidYellow'")]
+        [InlineData("'12'")]
+        [InlineData("12")]
+        public void FilterWithInOperationWithEnumsMemberIntegralValue(string filterOptionValue)
+        {
+            // Arrange
+            string filterQuery = $"{filterOptionValue} in FavoriteColors";
+
+            string expectedLiteralText = "'SolidYellow'";
+            string expectedfullyQualifiedName = "Fully.Qualified.Namespace.ColorPattern'SolidYellow'";
+            string expectedCollectionPropertyName = "FavoriteColors";
+
+            // Act
+            FilterClause filter = ParseFilter(filterQuery, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
+
+            // Assert
+            InNode inNode = Assert.IsType<InNode>(filter.Expression);
+            ConstantNode left = Assert.IsType<ConstantNode>(inNode.Left);
+            ODataEnumValue enumValue = Assert.IsType<ODataEnumValue>(left.Value);
+
+            Assert.Equal(expectedLiteralText, left.LiteralText);
+            Assert.Equal(expectedfullyQualifiedName, (enumValue.TypeName + left.LiteralText));
+            Assert.Equal(expectedCollectionPropertyName, Assert.IsType<CollectionPropertyAccessNode>(inNode.Right).Property.Name);
+        }
+
+        [Theory]
+        [InlineData("53")]
+        [InlineData("'53'")]
+        public void FilterWithInOperationWithEnumsInvalidMemberIntegralValue_ThrowsIsNotValidEnumConstantException(string integralValue)
+        {
+            // Arrange
+            string filterQuery = $"{integralValue} in FavoriteColors";
+
+            // Act
+            Action action = () => ParseFilter(filterQuery, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
+
+            // Assert
+            action.Throws<ODataException>(ODataErrorStrings.Binder_IsNotValidEnumConstant("53"));
+        }
+
+        [Theory]
+        [InlineData("'Teal'")]
+        [InlineData("NS.Color'Teal'")]
+        public void FilterWithInOperationWithEnumsInvalidMemberNames_ThrowsIsNotValidEnumConstantException(string memberName)
+        {
+            // Arrange
+            string filterQuery = $"{memberName} in FavoriteColors";
+
+            string expectedExceptionParameter = memberName.StartsWith("'") ? memberName.Trim('\'') : memberName; // Trim('\'') method removes any single quotes from the start and end of the string
+
+            // Act
+            Action action = () => ParseFilter(filterQuery, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
+
+            // Assert
+            action.Throws<ODataException>(ODataErrorStrings.Binder_IsNotValidEnumConstant(expectedExceptionParameter));
+        }
+
         [Fact]
         public void FilterWithInOperationWithAny()
         {
@@ -2138,17 +2196,112 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
         [Fact]
         public void FilterWithInOperationWithParensStringCollection_EscapedSingleQuote()
         {
-            FilterClause filter = ParseFilter("SSN in ('a''bc','''def','xyz''')", HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
+            FilterClause filter = ParseFilter("SSN in ('a''bc','''def','ghi''','xyz''')", HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
 
             var inNode = Assert.IsType<InNode>(filter.Expression);
             Assert.Equal("SSN", Assert.IsType<SingleValuePropertyAccessNode>(inNode.Left).Property.Name);
 
             CollectionConstantNode collectionNode = Assert.IsType<CollectionConstantNode>(inNode.Right);
-            Assert.Equal("('a''bc','''def','xyz''')", collectionNode.LiteralText);
-            Assert.Equal(3, collectionNode.Collection.Count);
+            Assert.Equal("('a''bc','''def','ghi''','xyz''')", collectionNode.LiteralText);
+            Assert.Equal(4, collectionNode.Collection.Count);
             collectionNode.Collection.ElementAt(0).ShouldBeConstantQueryNode("a'bc");
             collectionNode.Collection.ElementAt(1).ShouldBeConstantQueryNode("'def");
-            collectionNode.Collection.ElementAt(2).ShouldBeConstantQueryNode("xyz'");
+            collectionNode.Collection.ElementAt(2).ShouldBeConstantQueryNode("ghi'");
+            collectionNode.Collection.ElementAt(3).ShouldBeConstantQueryNode("xyz'");
+        }
+
+        [Theory]
+        [InlineData("('a''bc')", "('a''bc')", 1)]
+        [InlineData("['a''bc']", "['a''bc']", 1)]
+        [InlineData("('''def')", "('''def')", 1)]
+        [InlineData("['''def']", "['''def']", 1)]
+        [InlineData("('xyz''')", "('xyz''')", 1)]
+        [InlineData("['xyz''']", "['xyz''']", 1)]
+        [InlineData("('''pqr''')", "('''pqr''')", 1)]
+        [InlineData("['''pqr''']", "['''pqr''']", 1)]
+        [InlineData("('a''bc','''def')", "('a''bc','''def')", 2)]
+        [InlineData("['a''bc','''def']", "['a''bc','''def']", 2)]
+        [InlineData("('a''bc','xyz''')", "('a''bc','xyz''')", 2)]
+        [InlineData("['a''bc','xyz''']", "['a''bc','xyz''']", 2)]
+        [InlineData("('a''bc','''pqr''')", "('a''bc','''pqr''')", 2)]
+        [InlineData("['a''bc','''pqr''']", "['a''bc','''pqr''']", 2)]
+        [InlineData("('''def','a''bc')", "('''def','a''bc')", 2)]
+        [InlineData("['''def','a''bc']", "['''def','a''bc']", 2)]
+        [InlineData("('''def','xyz''')", "('''def','xyz''')", 2)]
+        [InlineData("['''def','xyz''']", "['''def','xyz''']", 2)]
+        [InlineData("('''def','''pqr''')", "('''def','''pqr''')", 2)]
+        [InlineData("['''def','''pqr''']", "['''def','''pqr''']", 2)]
+        [InlineData("('xyz''','a''bc')", "('xyz''','a''bc')", 2)]
+        [InlineData("['xyz''','a''bc']", "['xyz''','a''bc']", 2)]
+        [InlineData("('xyz''','''def')", "('xyz''','''def')", 2)]
+        [InlineData("['xyz''','''def']", "['xyz''','''def']", 2)]
+        [InlineData("('xyz''','''pqr''')", "('xyz''','''pqr''')", 2)]
+        [InlineData("['xyz''','''pqr''']", "['xyz''','''pqr''']", 2)]
+        [InlineData("('''pqr''','a''bc')", "('''pqr''','a''bc')", 2)]
+        [InlineData("['''pqr''','a''bc']", "['''pqr''','a''bc']", 2)]
+        [InlineData("('''pqr''','''def')", "('''pqr''','''def')", 2)]
+        [InlineData("['''pqr''','''def']", "['''pqr''','''def']", 2)]
+        [InlineData("('''pqr''','xyz''')", "('''pqr''','xyz''')", 2)]
+        [InlineData("['''pqr''','xyz''']", "['''pqr''','xyz''']", 2)]
+        [InlineData("('a''bc','''def','xyz''')", "('a''bc','''def','xyz''')", 3)]
+        [InlineData("['a''bc','''def','xyz''']", "['a''bc','''def','xyz''']", 3)]
+        [InlineData("('a''bc','''def','''pqr''')", "('a''bc','''def','''pqr''')", 3)]
+        [InlineData("['a''bc','''def','''pqr''']", "['a''bc','''def','''pqr''']", 3)]
+        [InlineData("('a''bc','xyz''','''def')", "('a''bc','xyz''','''def')", 3)]
+        [InlineData("['a''bc','xyz''','''def']", "['a''bc','xyz''','''def']", 3)]
+        [InlineData("('a''bc','xyz''','''pqr''')", "('a''bc','xyz''','''pqr''')", 3)]
+        [InlineData("['a''bc','xyz''','''pqr''']", "['a''bc','xyz''','''pqr''']", 3)]
+        [InlineData("('a''bc','''pqr''','''def')", "('a''bc','''pqr''','''def')", 3)]
+        [InlineData("['a''bc','''pqr''','''def']", "['a''bc','''pqr''','''def']", 3)]
+        [InlineData("('a''bc','''pqr''','xyz''')", "('a''bc','''pqr''','xyz''')", 3)]
+        [InlineData("['a''bc','''pqr''','xyz''']", "['a''bc','''pqr''','xyz''']", 3)]
+        [InlineData("('''def','a''bc','xyz''')", "('''def','a''bc','xyz''')", 3)]
+        [InlineData("['''def','a''bc','xyz''']", "['''def','a''bc','xyz''']", 3)]
+        [InlineData("('''def','a''bc','''pqr''')", "('''def','a''bc','''pqr''')", 3)]
+        [InlineData("['''def','a''bc','''pqr''']", "['''def','a''bc','''pqr''']", 3)]
+        [InlineData("('''def','xyz''','a''bc')", "('''def','xyz''','a''bc')", 3)]
+        [InlineData("['''def','xyz''','a''bc']", "['''def','xyz''','a''bc']", 3)]
+        [InlineData("('''def','xyz''','''pqr''')", "('''def','xyz''','''pqr''')", 3)]
+        [InlineData("['''def','xyz''','''pqr''']", "['''def','xyz''','''pqr''']", 3)]
+        [InlineData("('''def','''pqr''','a''bc')", "('''def','''pqr''','a''bc')", 3)]
+        [InlineData("['''def','''pqr''','a''bc']", "['''def','''pqr''','a''bc']", 3)]
+        [InlineData("('''def','''pqr''','xyz''')", "('''def','''pqr''','xyz''')", 3)]
+        [InlineData("['''def','''pqr''','xyz''']", "['''def','''pqr''','xyz''']", 3)]
+        [InlineData("('xyz''','a''bc','''def')", "('xyz''','a''bc','''def')", 3)]
+        [InlineData("['xyz''','a''bc','''def']", "['xyz''','a''bc','''def']", 3)]
+        [InlineData("('xyz''','a''bc','''pqr''')", "('xyz''','a''bc','''pqr''')", 3)]
+        [InlineData("['xyz''','a''bc','''pqr''']", "['xyz''','a''bc','''pqr''']", 3)]
+        [InlineData("('xyz''','''def','''pqr''')", "('xyz''','''def','''pqr''')", 3)]
+        [InlineData("['xyz''','''def','''pqr''']", "['xyz''','''def','''pqr''']", 3)]
+        [InlineData("('xyz''','''def','a''bc')", "('xyz''','''def','a''bc')", 3)]
+        [InlineData("['xyz''','''def','a''bc']", "['xyz''','''def','a''bc']", 3)]
+        [InlineData("('xyz''','''pqr''','a''bc')", "('xyz''','''pqr''','a''bc')", 3)]
+        [InlineData("['xyz''','''pqr''','a''bc']", "['xyz''','''pqr''','a''bc']", 3)]
+        [InlineData("('xyz''','''pqr''','''def')", "('xyz''','''pqr''','''def')", 3)]
+        [InlineData("['xyz''','''pqr''','''def']", "['xyz''','''pqr''','''def']", 3)]
+        [InlineData("('''pqr''','a''bc','''def')", "('''pqr''','a''bc','''def')", 3)]
+        [InlineData("['''pqr''','a''bc','''def']", "['''pqr''','a''bc','''def']", 3)]
+        [InlineData("('''pqr''','a''bc','xyz''')", "('''pqr''','a''bc','xyz''')", 3)]
+        [InlineData("['''pqr''','a''bc','xyz''']", "['''pqr''','a''bc','xyz''']", 3)]
+        [InlineData("('''pqr''','''def','a''bc')", "('''pqr''','''def','a''bc')", 3)]
+        [InlineData("['''pqr''','''def','a''bc']", "['''pqr''','''def','a''bc']", 3)]
+        [InlineData("('''pqr''','''def','xyz''')", "('''pqr''','''def','xyz''')", 3)]
+        [InlineData("['''pqr''','''def','xyz''']", "['''pqr''','''def','xyz''']", 3)]
+        [InlineData("('''pqr''','xyz''','a''bc')", "('''pqr''','xyz''','a''bc')", 3)]
+        [InlineData("['''pqr''','xyz''','a''bc']", "['''pqr''','xyz''','a''bc']", 3)]
+        [InlineData("('''pqr''','xyz''','''def')", "('''pqr''','xyz''','''def')", 3)]
+        [InlineData("['''pqr''','xyz''','''def']", "['''pqr''','xyz''','''def']", 3)]
+
+        public void FilterWithInExpressionContainingEscapedSingleQuotes(string inExpr, string parsedExpr, int count)
+        {
+            FilterClause filter = ParseFilter($"SSN in {inExpr}", HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
+
+            var inNode = Assert.IsType<InNode>(filter.Expression);
+            Assert.Equal("SSN", Assert.IsType<SingleValuePropertyAccessNode>(inNode.Left).Property.Name);
+
+            CollectionConstantNode collectionNode = Assert.IsType<CollectionConstantNode>(inNode.Right);
+            Assert.Equal(parsedExpr, collectionNode.LiteralText);
+            Assert.Equal(count, collectionNode.Collection.Count);
         }
 
         [Fact]
@@ -2405,6 +2558,24 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
         }
 
         [Theory]
+        [InlineData("SSN in ['']")]     // Edm.String
+        [InlineData("SSN in [ '' ]")]     // Edm.String
+        [InlineData("SSN in [\"\"]")]     // Edm.String
+        [InlineData("SSN in [ \"\" ]")]     // Edm.String
+        public void FilterWithInOperationWithEmptyStringInSquareBrackets(string filterClause)
+        {
+            FilterClause filter = ParseFilter(filterClause, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
+
+            var inNode = Assert.IsType<InNode>(filter.Expression);
+
+            CollectionConstantNode collectionNode = Assert.IsType<CollectionConstantNode>(inNode.Right);
+            Assert.Equal(1, collectionNode.Collection.Count);
+
+            ConstantNode constantNode = collectionNode.Collection.First();
+            Assert.Equal("\"\"", constantNode.LiteralText);
+        }
+
+        [Theory]
         [InlineData("SSN in ( ' ' )", " ")]     // 1 space
         [InlineData("SSN in ( '   ' )", "   ")]     // 3 spaces
         [InlineData("SSN in ( \"  \" )", "  ")]     // 2 spaces
@@ -2418,7 +2589,27 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             CollectionConstantNode collectionNode = Assert.IsType<CollectionConstantNode>(inNode.Right);
 
             // A single whitespace or multiple whitespaces are valid literals
-            Assert.Equal(1, collectionNode.Collection.Count);
+            Assert.Single(collectionNode.Collection);
+
+            ConstantNode constantNode = collectionNode.Collection.First();
+            Assert.Equal(expectedLiteralText, constantNode.LiteralText);
+        }
+
+        [Theory]
+        [InlineData("SSN in [ ' ' ]", " ")]     // 1 space
+        [InlineData("SSN in [ '   ' ]", "   ")]     // 3 spaces
+        [InlineData("SSN in [ \"  \" ]", "  ")]     // 2 spaces
+        [InlineData("SSN in [ \"    \" ]", "    ")]     // 4 spaces
+        public void FilterWithInOperationWithWhitespaceInSquareBrackets(string filterClause, string expectedLiteralText)
+        {
+            FilterClause filter = ParseFilter(filterClause, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
+
+            var inNode = Assert.IsType<InNode>(filter.Expression);
+
+            CollectionConstantNode collectionNode = Assert.IsType<CollectionConstantNode>(inNode.Right);
+
+            // A single whitespace or multiple whitespaces are valid literals
+            Assert.Single(collectionNode.Collection);
 
             ConstantNode constantNode = collectionNode.Collection.First();
             Assert.Equal(expectedLiteralText, constantNode.LiteralText);
@@ -2442,9 +2633,29 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
         }
 
         [Theory]
+        [InlineData("SSN in [ '', ' ' ]")]     // Edm.String
+        [InlineData("SSN in [ \"\", \" \" ]")]     // Edm.String
+        [InlineData("SSN in [ '', \" \" ]")]     // Edm.String
+        [InlineData("SSN in [ \"\", ' ' ]")]     // Edm.String
+        public void FilterWithInOperationWithEmptyStringAndWhitespaceInSquareBrackets(string filterClause)
+        {
+            FilterClause filter = ParseFilter(filterClause, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
+
+            var inNode = Assert.IsType<InNode>(filter.Expression);
+
+            CollectionConstantNode collectionNode = Assert.IsType<CollectionConstantNode>(inNode.Right);
+
+            // A single whitespace or multiple whitespaces are valid literals
+            Assert.Equal(2, collectionNode.Collection.Count);
+        }
+
+        [Theory]
         [InlineData("MyGuid in ( '' )", "")]  // Edm.Guid
         [InlineData("MyGuid in ( '  ' )", "  ")]  // Edm.Guid
         [InlineData("MyGuid in ( \" \" )", " ")]  // Edm.Guid
+        [InlineData("MyGuid in [ '' ]", "")]  // Edm.Guid
+        [InlineData("MyGuid in [ '  ' ]", "  ")]  // Edm.Guid
+        [InlineData("MyGuid in [ \" \" ]", " ")]  // Edm.Guid
         public void FilterWithInOperationGuidWithEmptyQuotesThrows(string filterClause, string quotedString)
         {
             Action parse = () => ParseFilter(filterClause, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
@@ -2455,6 +2666,9 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
         [InlineData("Birthdate in ( '' )", "")]  // Edm.DateTimeOffset
         [InlineData("Birthdate in ( \" \" )", " ")]  // Edm.DateTimeOffset
         [InlineData("Birthdate in ('   ')", "   ")]  // Edm.DateTimeOffset
+        [InlineData("Birthdate in [ '' ]", "")]  // Edm.DateTimeOffset
+        [InlineData("Birthdate in [ \" \" ]", " ")]  // Edm.DateTimeOffset
+        [InlineData("Birthdate in ['   ']", "   ")]  // Edm.DateTimeOffset
         public void FilterWithInOperationDateTimeOffsetWithEmptyQuotesThrows(string filterClause, string quotedString)
         {
             Action parse = () => ParseFilter(filterClause, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
@@ -2465,6 +2679,9 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
         [InlineData("MyDate in ( '' )", "")]  // Edm.Date
         [InlineData("MyDate in ( \" \" )", " ")]  // Edm.Date
         [InlineData("MyDate in ('   ')", "   ")]  // Edm.Date
+        [InlineData("MyDate in [ '' ]", "")]  // Edm.Date
+        [InlineData("MyDate in [ \" \" ]", " ")]  // Edm.Date
+        [InlineData("MyDate in ['   ']", "   ")]  // Edm.Date
         public void FilterWithInOperationDateWithEmptyQuotesThrows(string filterClause, string quotedString)
         {
             Action parse = () => ParseFilter(filterClause, HardCodedTestModel.TestModel, HardCodedTestModel.GetPersonType());
@@ -2818,7 +3035,81 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             Assert.Equal(new object[] {null},
                 Assert.IsType<CollectionConstantNode>(inNode.Right).Collection.Select(x => x.Value));
         }
-#endregion
+
+        [Fact]
+        public void FilterWithInOperationWithOpenTypes()
+        {
+            FilterClause filter = ParseFilter("example in ('examplepainting')",
+                HardCodedTestModel.TestModel, HardCodedTestModel.GetPaintingType());
+
+            var inNode = Assert.IsType<InNode>(filter.Expression);
+            Assert.Equal("example", Assert.IsType<SingleValueOpenPropertyAccessNode>(inNode.Left).Name);
+            Assert.Equal("('examplepainting')",
+                Assert.IsType<CollectionConstantNode>(inNode.Right).LiteralText);
+        }
+
+        [Theory]
+        [InlineData("'a'", "Edm.String")]
+        [InlineData("1", "Edm.Int32")]
+        [InlineData("true", "Edm.Boolean")]
+        [InlineData("Artist","Edm.String")]
+        [InlineData("Value", "Edm.Decimal")]
+        [InlineData("ArtistAddress","Fully.Qualified.Namespace.Address")]
+        [InlineData("Owner", "Fully.Qualified.Namespace.Person")]
+        [InlineData("undefined","Edm.Untyped")]
+        public void FilterWithInOperationWithDynamicRightOperand(string lOperand, string typeName)
+        {
+            FilterClause filter = ParseFilter(String.Format("{0} in dynamicCollection",lOperand),
+                HardCodedTestModel.TestModel, HardCodedTestModel.GetPaintingType());
+
+            var inNode = Assert.IsType<InNode>(filter.Expression);
+            var rNode = Assert.IsType<CollectionOpenPropertyAccessNode>(inNode.Right);
+            Assert.Equal("dynamicCollection", rNode.Name);
+            Assert.Equal(typeName, rNode.ItemType.FullName());
+        }
+
+        [Theory]
+        [InlineData("example in ('')", "\"\"")] // No space
+        [InlineData("example in (' ')", " ")] // 1 space
+        [InlineData("example in ( '   ' )", "   ")] // 3 spaces
+        [InlineData("example in ( \"  \" )", "  ")] // 2 spaces
+        [InlineData("example in ( \"    \" )", "    ")] // 4 spaces
+        public void FilterWithInOperationWithOpenTypesInEmptyString(string filterQueryString, string expectedLiteral)
+        {
+            FilterClause filter = ParseFilter(filterQueryString,
+                HardCodedTestModel.TestModel, HardCodedTestModel.GetPaintingType());
+
+            var inNode = Assert.IsType<InNode>(filter.Expression);
+            CollectionConstantNode collectionNode = Assert.IsType<CollectionConstantNode>(inNode.Right);
+            Assert.Equal(1, collectionNode.Collection.Count);
+
+            ConstantNode constantNode = collectionNode.Collection.First();
+            Assert.Equal(expectedLiteral, constantNode.LiteralText);
+        }
+
+        [Theory]
+        [InlineData("example in ('', \"  \")", "\"\"", "  ")]
+        [InlineData("example in (' ', \"\")", " ", "\"\"")]
+        [InlineData("example in ( '   ', '' )", "   ", "\"\"")]
+        [InlineData("example in ( \"  \", \" \" )", "  ", " ")]
+        [InlineData("example in ( \"    \", ' ' )", "    ", " ")]
+        public void FilterWithInOperationWithOpenTypesInMultipleEmptyStrings(string filterQueryString, string expectedFirstLiteral, string expectedSecondLiteral)
+        {
+            FilterClause filter = ParseFilter(filterQueryString,
+                HardCodedTestModel.TestModel, HardCodedTestModel.GetPaintingType());
+
+            var inNode = Assert.IsType<InNode>(filter.Expression);
+            CollectionConstantNode collectionNode = Assert.IsType<CollectionConstantNode>(inNode.Right);
+            Assert.Equal(2, collectionNode.Collection.Count);
+
+            ConstantNode constantNode1 = collectionNode.Collection.First();
+            Assert.Equal(expectedFirstLiteral, constantNode1.LiteralText);
+
+            ConstantNode constantNode2 = collectionNode.Collection.Last();
+            Assert.Equal(expectedSecondLiteral, constantNode2.LiteralText);
+        }
+
+        #endregion
 
         private static FilterClause ParseFilter(string text, IEdmModel edmModel, IEdmType edmType, IEdmNavigationSource edmEntitySet = null)
         {

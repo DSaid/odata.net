@@ -13,7 +13,7 @@ using System.IO;
 using System.Text;
 using Microsoft.OData.Edm;
 using Microsoft.OData.Evaluation;
-using Microsoft.OData.JsonLight;
+using Microsoft.OData.Json;
 using Microsoft.OData.Metadata;
 using ODataErrorStrings = Microsoft.OData.Strings;
 
@@ -78,7 +78,6 @@ namespace Microsoft.OData
 
         /// <summary>
         /// Converts the given string <paramref name="value"/> to an ODataCollectionValue and returns it.
-        /// Tries in both JSON light and Verbose JSON.
         /// </summary>
         /// <remarks>Does not handle primitive values.</remarks>
         /// <param name="value">Value to be deserialized.</param>
@@ -166,7 +165,7 @@ namespace Microsoft.OData
             ExceptionUtils.CheckArgumentNotNull(resource, "resource");
             ExceptionUtils.CheckArgumentNotNull(model, "model");
 
-            return ConvertToJsonLightLiteral(
+            return ConvertToJsonLiteral(
                 model,
                 context =>
             {
@@ -187,7 +186,7 @@ namespace Microsoft.OData
             ExceptionUtils.CheckArgumentNotNull(entries, "entries");
             ExceptionUtils.CheckArgumentNotNull(model, "model");
 
-            return ConvertToJsonLightLiteral(
+            return ConvertToJsonLiteral(
                 model,
                 context =>
             {
@@ -216,7 +215,7 @@ namespace Microsoft.OData
             ExceptionUtils.CheckArgumentNotNull(link, "link");
             ExceptionUtils.CheckArgumentNotNull(model, "model");
 
-            return ConvertToJsonLightLiteral(model, context => context.WriteEntityReferenceLink(link));
+            return ConvertToJsonLiteral(model, context => context.WriteEntityReferenceLink(link));
         }
 
         /// <summary>
@@ -230,7 +229,7 @@ namespace Microsoft.OData
             ExceptionUtils.CheckArgumentNotNull(links, "links");
             ExceptionUtils.CheckArgumentNotNull(model, "model");
 
-            return ConvertToJsonLightLiteral(model, context => context.WriteEntityReferenceLinks(links));
+            return ConvertToJsonLiteral(model, context => context.WriteEntityReferenceLinks(links));
         }
 
         /// <summary>
@@ -245,8 +244,7 @@ namespace Microsoft.OData
             ExceptionUtils.CheckArgumentNotNull(resourceValue, "resourceValue");
             ExceptionUtils.CheckArgumentNotNull(model, "model");
 
-            StringBuilder builder = new StringBuilder();
-            using (TextWriter textWriter = new StringWriter(builder, CultureInfo.InvariantCulture))
+            using (Stream memoryStream = new MemoryStream())
             {
                 ODataMessageWriterSettings messageWriterSettings = new ODataMessageWriterSettings()
                 {
@@ -254,21 +252,22 @@ namespace Microsoft.OData
                     Validations = ~ValidationKinds.ThrowOnUndeclaredPropertyForNonOpenType,
 
                     // Should write instance annotations for the literal
-                    ShouldIncludeAnnotation = ODataUtils.CreateAnnotationFilter("*")
+                    ShouldIncludeAnnotationInternal = ODataUtils.CreateAnnotationFilter("*")
                 };
 
-                WriteJsonLightLiteral(
+                WriteJsonLiteral(
                     model,
                     messageWriterSettings,
-                    textWriter,
-                    (serializer) => serializer.WriteResourceValue(
-                        resourceValue, /* resourceValue */
-                        null, /* metadataTypeReference */
-                        true, /* isOpenPropertyType */
-                        serializer.CreateDuplicatePropertyNameChecker()));
-            }
+                    memoryStream,
+                    (serializer, duplicatePropertyNamesChecker) => serializer.WriteResourceValue(
+                        resourceValue,
+                        metadataTypeReference : null,
+                        isOpenPropertyType : true,
+                        duplicatePropertyNamesChecker: duplicatePropertyNamesChecker));
 
-            return builder.ToString();
+                memoryStream.Position = 0;
+                return new StreamReader(memoryStream).ReadToEnd();
+            }
         }
 
         /// <summary>
@@ -296,8 +295,7 @@ namespace Microsoft.OData
             ExceptionUtils.CheckArgumentNotNull(collectionValue, "collectionValue");
             ExceptionUtils.CheckArgumentNotNull(model, "model");
 
-            StringBuilder builder = new StringBuilder();
-            using (TextWriter textWriter = new StringWriter(builder, CultureInfo.InvariantCulture))
+            using (Stream memoryStream = new MemoryStream())
             {
                 ODataMessageWriterSettings messageWriterSettings = new ODataMessageWriterSettings()
                 {
@@ -305,24 +303,26 @@ namespace Microsoft.OData
                     Validations = ~ValidationKinds.ThrowOnUndeclaredPropertyForNonOpenType,
 
                     // TBD: Should write instance annotations for the literal???
-                    ShouldIncludeAnnotation = ODataUtils.CreateAnnotationFilter("*"),
+                    ShouldIncludeAnnotationInternal = ODataUtils.CreateAnnotationFilter("*"),
                     IsIeee754Compatible = isIeee754Compatible
                 };
 
-                WriteJsonLightLiteral(
+                WriteJsonLiteral(
                     model,
                     messageWriterSettings,
-                    textWriter,
-                    (serializer) => serializer.WriteCollectionValue(
+                    memoryStream,
+                    (serializer, duplicatePropertyNameChecker) => serializer.WriteCollectionValue(
                         collectionValue,
-                        null /*metadataTypeReference*/,
-                        null /*valueTypeReference*/,
-                        false /*isTopLevelProperty*/,
-                        true /*isInUri*/,
-                        false /*isOpenPropertyType*/));
-            }
+                        metadataTypeReference : null,
+                        valueTypeReference : null,
+                        isTopLevelProperty: false,
+                        isInUri: true,
+                        isOpenPropertyType: false),
+                        isResourceValue: false);
 
-            return builder.ToString();
+                memoryStream.Position = 0;
+                return new StreamReader(memoryStream).ReadToEnd();
+            }
         }
 
         /// <summary>
@@ -509,7 +509,13 @@ namespace Microsoft.OData
                     if (primitiveValue is Date)
                     {
                         var dateValue = (Date)primitiveValue;
-                        return new DateTimeOffset(dateValue.Year, dateValue.Month, dateValue.Day, 0, 0, 0, new TimeSpan(0));
+                        return new DateTimeOffset(dateValue.Year, dateValue.Month, dateValue.Day, 0, 0, 0, TimeSpan.Zero);
+                    }
+
+                    if (primitiveValue is DateOnly dateOnly)
+                    {
+                        var dateValue = (Date)dateOnly;
+                        return new DateTimeOffset(dateValue.Year, dateValue.Month, dateValue.Day, 0, 0, 0, TimeSpan.Zero);
                     }
 
                     break;
@@ -548,18 +554,25 @@ namespace Microsoft.OData
         }
 
         /// <summary>
-        /// Write a literal value in JSON Light format.
+        /// Write a literal value in Json format.
         /// </summary>
         /// <param name="model">EDM Model to use for validation and type lookups.</param>
         /// <param name="messageWriterSettings">Settings to use when writing.</param>
-        /// <param name="textWriter">TextWriter to use as the output for the value.</param>
+        /// <param name="stream">The stream to write to.</param>
         /// <param name="writeValue">Delegate to use to actually write the value.</param>
-        private static void WriteJsonLightLiteral(IEdmModel model, ODataMessageWriterSettings messageWriterSettings, TextWriter textWriter, Action<ODataJsonLightValueSerializer> writeValue)
+        /// <param name="isResourceValue">We want to pass the <see cref="IDuplicatePropertyNameChecker"/> instance to the Action delegate when writing Resource value but not Collection value.</param>
+        private static void WriteJsonLiteral(
+            IEdmModel model,
+            ODataMessageWriterSettings messageWriterSettings,
+            Stream stream,
+            Action<ODataJsonValueSerializer, IDuplicatePropertyNameChecker> writeValue,
+            bool isResourceValue = true)
         {
             IEnumerable<KeyValuePair<string, string>> parameters = new Dictionary<string, string>
             {
                 { MimeConstants.MimeIeee754CompatibleParameterName, messageWriterSettings.IsIeee754Compatible.ToString() }
             };
+
             ODataMediaType mediaType = new ODataMediaType(MimeConstants.MimeApplicationType, MimeConstants.MimeJsonSubType, parameters);
 
             // Calling dispose since it's the right thing to do, but when created from a custom-built TextWriter
@@ -570,25 +583,38 @@ namespace Microsoft.OData
                 Model = model,
                 IsAsync = false,
                 IsResponse = false,
-                MediaType = mediaType
+                MediaType = mediaType,
+                Encoding = Encoding.UTF8,
             };
 
-            using (ODataJsonLightOutputContext jsonOutputContext =
-                new ODataJsonLightOutputContext(textWriter, messageInfo, messageWriterSettings))
+            using (ODataJsonOutputContext jsonOutputContext =
+                new ODataJsonOutputContext(stream, messageInfo, messageWriterSettings))
             {
-                ODataJsonLightValueSerializer jsonLightValueSerializer = new ODataJsonLightValueSerializer(jsonOutputContext);
-                writeValue(jsonLightValueSerializer);
-                jsonLightValueSerializer.AssertRecursionDepthIsZero();
+                ODataJsonValueSerializer jsonValueSerializer = new ODataJsonValueSerializer(jsonOutputContext);
+
+                if (!isResourceValue)
+                {
+                    writeValue(jsonValueSerializer, null);
+                }
+                else
+                {
+                    IDuplicatePropertyNameChecker duplicatePropertyNameChecker = jsonValueSerializer.GetDuplicatePropertyNameChecker();
+                    writeValue(jsonValueSerializer, duplicatePropertyNameChecker);
+                    jsonValueSerializer.ReturnDuplicatePropertyNameChecker(duplicatePropertyNameChecker);
+                }
+
+                jsonValueSerializer.AssertRecursionDepthIsZero();
+                jsonOutputContext.JsonWriter.Flush();
             }
         }
 
         /// <summary>
-        /// Convert to a literal value in JSON Light format.
+        /// Convert to a literal value in Json format.
         /// </summary>
         /// <param name="model">EDM Model to use for validation and type lookups.</param>
         /// <param name="writeAction">Delegate to use to actually write the value.</param>
         /// <returns>The literal value string.</returns>
-        private static string ConvertToJsonLightLiteral(IEdmModel model, Action<ODataOutputContext> writeAction)
+        private static string ConvertToJsonLiteral(IEdmModel model, Action<ODataOutputContext> writeAction)
         {
             using (MemoryStream stream = new MemoryStream())
             {
@@ -611,10 +637,12 @@ namespace Microsoft.OData
                 };
 
                 // TODO: URI parser will also support DI container in the future but set the container to null at this moment.
-                using (ODataJsonLightOutputContext jsonOutputContext =
-                    new ODataJsonLightOutputContext(messageInfo, messageWriterSettings))
+                using (ODataJsonOutputContext jsonOutputContext =
+                    new ODataJsonOutputContext(messageInfo, messageWriterSettings))
                 {
                     writeAction(jsonOutputContext);
+
+                    jsonOutputContext.JsonWriter.Flush();
                     stream.Position = 0;
                     return new StreamReader(stream).ReadToEnd();
                 }
@@ -625,6 +653,7 @@ namespace Microsoft.OData
         {
             ODataMessageReaderSettings settings = new ODataMessageReaderSettings();
             settings.Validations &= ~ValidationKinds.ThrowOnUndeclaredPropertyForNonOpenType;
+            settings.ReadUntypedAsString = false;
 
             using (StringReader reader = new StringReader(value))
             {
@@ -635,11 +664,12 @@ namespace Microsoft.OData
                     IsResponse = false,
                     IsAsync = false,
                     MessageStream = null,
+                    Encoding = Encoding.UTF8,
                 };
 
-                using (ODataJsonLightInputContext context = new ODataJsonLightInputContext(reader, messageInfo, settings))
+                using (ODataJsonInputContext context = new ODataJsonInputContext(reader, messageInfo, settings))
                 {
-                    ODataJsonLightPropertyAndValueDeserializer deserializer = new ODataJsonLightPropertyAndValueDeserializer(context);
+                    ODataJsonPropertyAndValueDeserializer deserializer = new ODataJsonPropertyAndValueDeserializer(context);
 
                     // TODO: The way JSON array literals look in the URI is different that response payload with an array in it.
                     // The fact that we have to manually setup the underlying reader shows this different in the protocol.

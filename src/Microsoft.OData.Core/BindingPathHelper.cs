@@ -4,7 +4,6 @@
 // </copyright>
 //---------------------------------------------------------------------
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.OData.Edm;
@@ -21,7 +20,7 @@ namespace Microsoft.OData
         /// <param name="bindingPath">The binding path.</param>
         /// <param name="parsedSegments">The list of segments in Uri path.</param>
         /// <returns>True if the path of navigation property in current scope is matching the <paramref name="bindingPath"/>.</returns>
-        public static bool MatchBindingPath(IEdmPathExpression bindingPath, IList<ODataPathSegment> parsedSegments)
+        public static bool MatchBindingPath(IEdmPathExpression bindingPath, IReadOnlyList<ODataPathSegment> parsedSegments)
         {
             List<string> paths = bindingPath.PathSegments.ToList();
 
@@ -54,7 +53,7 @@ namespace Microsoft.OData
                 else if (segment is TypeSegment)
                 {
                     // May need match type if the binding path contains type cast.
-                    if (pathIndex >= 0 && paths[pathIndex].IndexOf('.') >= 0)
+                    if (pathIndex >= 0 && paths[pathIndex].IndexOf('.', System.StringComparison.Ordinal) >= 0)
                     {
                         if (string.CompareOrdinal(paths[pathIndex], segment.EdmType.AsElementType().FullTypeName()) != 0)
                         {

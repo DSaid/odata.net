@@ -9,11 +9,10 @@ namespace Microsoft.OData.Client.Materialization
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Linq;
     using System.Reflection;
+    using Microsoft.OData;
     using Microsoft.OData.Client;
     using Microsoft.OData.Client.Metadata;
-    using Microsoft.OData;
     using Microsoft.OData.Edm;
     using DSClient = Microsoft.OData.Client;
 
@@ -112,9 +111,9 @@ namespace Microsoft.OData.Client.Materialization
         internal void MaterializePrimitiveDataValue(Type type, ODataProperty property)
         {
             Debug.Assert(type != null, "type != null");
-            Debug.Assert(property != null, "atomProperty != null");
+            Debug.Assert(property != null, "entryProperty != null");
 
-            if (!property.HasMaterializedValue())
+            if (!property.HasMaterializedValue(this.MaterializerContext))
             {
                 object value = property.Value;
                 ODataUntypedValue untypedVal = value as ODataUntypedValue;
@@ -125,7 +124,7 @@ namespace Microsoft.OData.Client.Materialization
                 }
 
                 object materializedValue = this.PrimitivePropertyConverter.ConvertPrimitiveValue(value, type);
-                property.SetMaterializedValue(materializedValue);
+                property.SetMaterializedValue(materializedValue, this.MaterializerContext);
             }
         }
 
@@ -218,7 +217,7 @@ namespace Microsoft.OData.Client.Materialization
             else
             {
                 this.MaterializePrimitiveDataValue(prop.NullablePropertyType, property);
-                prop.SetValue(instance, property.GetMaterializedValue(), property.Name, true /* allowAdd? */);
+                prop.SetValue(instance, property.GetMaterializedValue(this.MaterializerContext), property.Name, true /* allowAdd? */);
             }
 
             if (!this.MaterializerContext.Context.DisableInstanceAnnotationMaterialization)
@@ -229,10 +228,10 @@ namespace Microsoft.OData.Client.Materialization
         }
 
         /// <summary>
-        /// Materializes the primitive data values in the given list of <paramref name="values"/>.
+        /// Materializes the primitive data values in the given list of <paramref name="properties"/>.
         /// </summary>
         /// <param name="actualType">Actual type for properties being materialized.</param>
-        /// <param name="values">List of values to materialize.</param>
+        /// <param name="properties">List of values to materialize.</param>
         /// <param name="undeclaredPropertyBehavior">
         /// Whether properties missing from the client types should be supported or throw exception.
         /// </param>
@@ -240,14 +239,16 @@ namespace Microsoft.OData.Client.Materialization
         /// Values are materialized in-place with each <see cref="ODataProperty"/>
         /// instance.
         /// </remarks>
-        internal void MaterializeDataValues(ClientTypeAnnotation actualType, IEnumerable<ODataProperty> values, UndeclaredPropertyBehavior undeclaredPropertyBehavior)
+        internal void MaterializeDataValues(ClientTypeAnnotation actualType, IEnumerable<ODataPropertyInfo> properties, UndeclaredPropertyBehavior undeclaredPropertyBehavior)
         {
             Debug.Assert(actualType != null, "actualType != null");
-            Debug.Assert(values != null, "values != null");
+            Debug.Assert(properties != null, "values != null");
 
-            foreach (var odataProperty in values)
+            foreach (ODataPropertyInfo propertyInfo in properties)
             {
-                if (odataProperty.Value is ODataStreamReferenceValue)
+                // Property without value or stream property
+                if (propertyInfo is not ODataProperty odataProperty
+                    || odataProperty.Value is ODataStreamReferenceValue)
                 {
                     continue;
                 }
@@ -264,7 +265,7 @@ namespace Microsoft.OData.Client.Materialization
                 // This is a breaking change from V1/V2 where we allowed materialization of entities into non-entities and vice versa
                 if (ClientTypeUtil.TypeOrElementTypeIsEntity(property.PropertyType))
                 {
-                    throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidEntityType(property.EntityCollectionItemType ?? property.PropertyType));
+                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidEntityType(property.EntityCollectionItemType ?? property.PropertyType));
                 }
 
                 if (property.IsKnownType)

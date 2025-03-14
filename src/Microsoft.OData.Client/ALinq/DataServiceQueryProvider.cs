@@ -9,6 +9,7 @@ namespace Microsoft.OData.Client
     #region Namespaces
 
     using System;
+    using System.Collections;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
@@ -87,13 +88,14 @@ namespace Microsoft.OData.Client
 
         #endregion
 
+
         /// <summary>Creates and executes a DataServiceQuery based on the passed in expression which results a single value</summary>
         /// <typeparam name="TElement">generic type</typeparam>
         /// <param name="expression">The expression for the new query</param>
         /// <returns>single valued results</returns>
         internal TElement ReturnSingleton<TElement>(Expression expression)
         {
-            IQueryable<TElement> query = new DataServiceQuery<TElement>.DataServiceOrderedQuery(expression, this);
+            IQueryable<TElement> query = CreateQuery<TElement>(expression);
 
             MethodCallExpression mce = expression as MethodCallExpression;
             Debug.Assert(mce != null, "mce != null");
@@ -105,15 +107,35 @@ namespace Microsoft.OData.Client
                 {
                     case SequenceMethod.Single:
                         return query.AsEnumerable().Single();
+                    case SequenceMethod.SinglePredicate:
+                        query = CreateQuery<TElement>(NestPredicateExpression(mce));
+                        return query.AsEnumerable().Single();
                     case SequenceMethod.SingleOrDefault:
+                        return query.AsEnumerable().SingleOrDefault();
+                    case SequenceMethod.SingleOrDefaultPredicate:
+                        query = CreateQuery<TElement>(NestPredicateExpression(mce));
                         return query.AsEnumerable().SingleOrDefault();
                     case SequenceMethod.First:
                         return query.AsEnumerable().First();
+                    case SequenceMethod.FirstPredicate:
+                        query = CreateQuery<TElement>(NestPredicateExpression(mce));
+                        return query.AsEnumerable().First();
                     case SequenceMethod.FirstOrDefault:
+                        return query.AsEnumerable().FirstOrDefault();
+                    case SequenceMethod.FirstOrDefaultPredicate:
+                        query = CreateQuery<TElement>(NestPredicateExpression(mce));
                         return query.AsEnumerable().FirstOrDefault();
                     case SequenceMethod.LongCount:
                     case SequenceMethod.Count:
                         return ((DataServiceQuery<TElement>)query).GetValue(this.Context, ParseQuerySetCount<TElement>);
+                    case SequenceMethod.LongCountPredicate:
+                    case SequenceMethod.CountPredicate:
+                        query = CreateQuery<TElement>(NestPredicateExpression(mce));
+                        return ((DataServiceQuery<TElement>)query).GetValue(this.Context, ParseQuerySetCount<TElement>);
+                    case SequenceMethod.Any:
+                        return GetValueForAny<TElement>(mce);
+                    case SequenceMethod.AnyPredicate:
+                        return GetValueForAny<TElement>(NestPredicateExpression(mce));
                     case SequenceMethod.SumIntSelector:
                     case SequenceMethod.SumDoubleSelector:
                     case SequenceMethod.SumDecimalSelector:
@@ -172,9 +194,74 @@ namespace Microsoft.OData.Client
 
             UriWriter.Translate(this.Context, addTrailingParens, e, out uri, out version);
             ResourceExpression re = e as ResourceExpression;
-            Type lastSegmentType = re.Projection == null ? re.ResourceType : re.Projection.Selector.Parameters[0].Type;
+            ApplyQueryOptionExpression applyQueryOptionExpr = (re as QueryableResourceExpression)?.Apply;
+            Type lastSegmentType;
+
+            // The KeySelectorMap property is initialized and populated with a least one item if we're dealing with a GroupBy expression.
+            // In that case, the selector in the Projection will take the following form:
+            // (d2, d3) => new <>f_AnonymousType13`2(CategoryName = d2, AverageAmount = d3.Average(d4 => d4))
+            // We examine the 2nd parameter to determine the type of values in the IGrouping<TKey, TElement>
+            // The TElement type implements IEnumerable and the first generic argument should be our last segment type
+            if (applyQueryOptionExpr?.KeySelectorMap?.Count > 0)
+            {
+                lastSegmentType = re.Projection.Selector.Parameters[1].Type.GetGenericArguments()[0];
+            }
+            else
+            {
+                lastSegmentType = re.Projection == null ? re.ResourceType : re.Projection.Selector.Parameters[0].Type;
+            }
+
             LambdaExpression selector = re.Projection == null ? null : re.Projection.Selector;
-            return new QueryComponents(uri, version, lastSegmentType, selector, normalizerRewrites);
+            QueryComponents queryComponents = new QueryComponents(uri, version, lastSegmentType, selector, normalizerRewrites);
+            queryComponents.GroupByKeySelectorMap = applyQueryOptionExpr?.KeySelectorMap;
+
+            return queryComponents;
+        }
+
+        /// <summary>
+        /// Transforms the 'any' query into a 'count' request since OData does not have a spcific query for 'any'.
+        /// Then the result is casted to the corresponding return type (boolean).
+        /// </summary>
+        /// <typeparam name="TElement">The return type.</typeparam>
+        /// <param name="mce">The original expression with predicate.</param>
+        /// <returns></returns>
+        private TElement GetValueForAny<TElement>(MethodCallExpression mce)
+        {
+            Expression arg0 = mce.Arguments[0];
+            Expression countExpression = Expression.Call(
+                typeof(Enumerable),
+                "Count",
+                new Type[] { arg0.Type.GetGenericArguments()[0] },
+                arg0
+            );
+            var query = CreateQuery<TElement>(countExpression) as DataServiceQuery<TElement>;
+            return query.GetValue(Context, ParseQuerySetCount<TElement>);
+        }
+
+        /// <summary>
+        /// Transforms the expression type to one of type 'where'.
+        /// Then it wraps this 'where' expression into one of the received type but without a predicate.
+        /// </summary>
+        /// <param name="mce">The original expression with predicate.</param>
+        /// <returns>The wrapped expression.</returns>
+        private static MethodCallExpression NestPredicateExpression(MethodCallExpression mce)
+        {
+            Type resourceType = mce.Arguments[0].Type.GetGenericArguments()[0];
+
+            Expression where = Expression.Call(
+                typeof(Queryable),
+                "Where",
+                new Type[] { resourceType },
+                mce.Arguments[0],
+                mce.Arguments[1]
+            );
+
+            return Expression.Call(
+                typeof(Enumerable),
+                mce.Method.Name,
+                new Type[] { resourceType },
+                where
+            );
         }
 
         /// <summary>
@@ -208,8 +295,10 @@ namespace Microsoft.OData.Client
         /// <returns></returns>
         private TElement ParseAggregateSingletonResult<TElement>(QueryResult queryResult)
         {
-            IDictionary<string, string> responseHeaders = new Dictionary<string, string>();
-            responseHeaders.Add(ODataConstants.ContentTypeHeader, "application/json");
+            IDictionary<string, string> responseHeaders = new Dictionary<string, string>
+            {
+                { ODataConstants.ContentTypeHeader, "application/json" }
+            };
             HttpWebResponseMessage httpWebResponseMessage = new HttpWebResponseMessage(
                 responseHeaders, (int)queryResult.StatusCode, queryResult.GetResponseStream);
 
@@ -229,9 +318,10 @@ namespace Microsoft.OData.Client
                     {
                         case ODataReaderState.ResourceEnd:
                             entry = reader.Item as ODataResource;
-                            if (entry != null && entry.Properties.Any())
+                            IEnumerable<ODataProperty> properties = entry.Properties?.OfType<ODataProperty>();
+                            if (entry != null && properties?.Any() == true)
                             {
-                                ODataProperty aggregationProperty = entry.Properties.First();
+                                ODataProperty aggregationProperty = properties.First();
                                 ODataUntypedValue untypedValue = aggregationProperty.Value as ODataUntypedValue;
 
                                 Type underlyingType = Nullable.GetUnderlyingType(typeof(TElement));

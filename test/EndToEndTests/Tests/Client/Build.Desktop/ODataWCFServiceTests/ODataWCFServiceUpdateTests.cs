@@ -6,20 +6,19 @@
 
 namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
 {
+    using System;
+    using System.Collections.ObjectModel;
+    using System.Linq;
     using Microsoft.OData;
-    using Microsoft.OData.UriParser;
     using Microsoft.OData.Edm;
     using Microsoft.Test.OData.Services.TestServices;
     using Microsoft.Test.OData.Tests.Client.Common;
-    using System;
-    using System.Linq;
-    using System.Collections.ObjectModel;
     using Xunit;
 
     /// <summary>
     /// CUD tests for the ODL service.
     /// </summary>
-    public class ODataWCFServiceUpdateTests : ODataWCFServiceTestsBase<Microsoft.Test.OData.Services.TestServices.ODataWCFServiceReference.InMemoryEntities>
+    public class ODataWCFServiceUpdateTests : ODataWCFServiceTestsBase<Microsoft.Test.OData.Services.TestServices.ODataWCFServiceReference.InMemoryEntities>, IDisposable
     {
         private static string NameSpacePrefix = "Microsoft.Test.OData.Services.ODataWCFService.";
 
@@ -68,7 +67,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             // verify the insert
             Assert.Equal(201, responseMessage.StatusCode);
             ODataResource entry = this.QueryEntityItem("Orders(101)") as ODataResource;
-            Assert.Equal(101, entry.Properties.Single(p => p.Name == "OrderID").Value);
+            Assert.Equal(101, Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "OrderID")).Value);
 
             // delete the entry
             var deleteRequestMessage = new HttpWebRequestMessage(new Uri(ServiceBaseUri + "Orders(101)"));
@@ -120,7 +119,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             // verify the insert
             Assert.Equal(201, responseMessage.StatusCode);
             ODataResource entry = this.QueryEntityItem("Orders(101)") as ODataResource;
-            Assert.Equal(101, entry.Properties.Single(p => p.Name == "OrderID").Value);
+            Assert.Equal(101, Assert.IsType<ODataProperty>(entry.Properties.Single(p => p.Name == "OrderID")).Value);
 
             // delete the entry
             var deleteRequestMessage = new HttpWebRequestMessage(new Uri(ServiceBaseUri + "Orders(101)"));
@@ -141,7 +140,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
         {
             // query an entry
             ODataResource customerEntry = this.QueryEntityItem("Customers(1)") as ODataResource;
-            Assert.Equal("London", customerEntry.Properties.Single(p => p.Name == "City").Value);
+            Assert.Equal("London", Assert.IsType<ODataProperty>(customerEntry.Properties.Single(p => p.Name == "City")).Value);
 
             // send a request to update an entry property
             customerEntry = new ODataResource() { TypeName = NameSpacePrefix + "Customer" };
@@ -170,7 +169,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             // verify the update
             Assert.Equal(204, responseMessage.StatusCode);
             ODataResource updatedCustomer = this.QueryEntityItem("Customers(1)") as ODataResource;
-            Assert.Equal("Seattle", updatedCustomer.Properties.Single(p => p.Name == "City").Value);
+            Assert.Equal("Seattle", Assert.IsType<ODataProperty>(updatedCustomer.Properties.Single(p => p.Name == "City")).Value);
         }
 
         private ODataItem QueryEntityItem(string uri, int expectedStatusCode = 200)
@@ -178,7 +177,7 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             ODataMessageReaderSettings readerSettings = new ODataMessageReaderSettings() { BaseUri = ServiceBaseUri };
 
             var queryRequestMessage = new HttpWebRequestMessage(new Uri(ServiceBaseUri.AbsoluteUri + uri, UriKind.Absolute));
-            queryRequestMessage.SetHeader("Accept", MimeTypes.ApplicationJsonLight);
+            queryRequestMessage.SetHeader("Accept", MimeTypes.ApplicationJson);
             var queryResponseMessage = queryRequestMessage.GetResponse();
             Assert.Equal(expectedStatusCode, queryResponseMessage.StatusCode);
 
@@ -201,6 +200,11 @@ namespace Microsoft.Test.OData.Tests.Client.ODataWCFServiceTests
             }
 
             return item;
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
         }
     }
 }

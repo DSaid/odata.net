@@ -9,9 +9,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OData.Core.Tests.DependencyInjection;
 using Microsoft.OData.Edm;
 using Microsoft.OData.Json;
-using Microsoft.Test.OData.DependencyInjection;
 using Microsoft.Test.OData.Utils.ODataLibTest;
 using Xunit;
 
@@ -28,7 +31,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
         [Fact]
         public void InjectCustomJsonWriter()
         {
-            RunWriterTest(builder => builder.AddService<IJsonWriterFactory, TestJsonWriterFactory>(ServiceLifetime.Transient),
+            RunWriterTest(builder => builder.AddTransient<IJsonWriterFactory, TestJsonWriterFactory>(),
                 "<\"@context\":\"http://test/$metadata#People/$entity\",\"PersonId\":999,\"Name\":\"Jack\",>");
         }
 
@@ -48,7 +51,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
             "\"Address\":{" +
                 "\"SubAddress\":{\"SubRoad\":\"Redmond\"}}}");
 
-            Assert.Equal("Redmond", resDict["DefaultNs.SubAddress"].ToList()[0].Value);
+            Assert.Equal("Redmond", Assert.IsType<ODataProperty>(resDict["DefaultNs.SubAddress"].ToList()[0]).Value);
         }
         
         [Fact]
@@ -61,8 +64,8 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
                 "\"Address\":{" +
                 "\"City\":{\"ZipCode\":98052}}}");
 
-            Assert.Equal(10001, resDict["DefaultNs.PersonCity"].ToList()[0].Value);
-            Assert.Equal(98052, resDict["DefaultNs.City"].ToList()[0].Value);
+            Assert.Equal(10001, Assert.IsType<ODataProperty>(resDict["DefaultNs.PersonCity"].ToList()[0]).Value);
+            Assert.Equal(98052, Assert.IsType<ODataProperty>(resDict["DefaultNs.City"].ToList()[0]).Value);
         }
 
         [Fact]
@@ -75,8 +78,8 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
                 "\"SubAddress\":{\"SubRoad\":\"Redmond\"},"+
               "\"City\":{\"ZipCode\":98052}}}");
 
-            Assert.Equal("Redmond", resDict["DefaultNs.SubAddress"].ToList()[0].Value);
-            Assert.Equal(98052, resDict["DefaultNs.City"].ToList()[0].Value);
+            Assert.Equal("Redmond", Assert.IsType<ODataProperty>(resDict["DefaultNs.SubAddress"].ToList()[0]).Value);
+            Assert.Equal(98052, Assert.IsType<ODataProperty>(resDict["DefaultNs.City"].ToList()[0]).Value);
         }
       
         [Fact]
@@ -88,17 +91,17 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
           "\"Address\":{" +
               "\"SubAddress\":{\"SubRoad\":\"Redmond\"}}}");
 
-            Assert.Equal("Redmond", resDict["DefaultNs.SubAddress"].ToList()[0].Value);
+            Assert.Equal("Redmond", Assert.IsType<ODataProperty>(resDict["DefaultNs.SubAddress"].ToList()[0]).Value);
         }
 
         [Fact]
         public void InjectCustomJsonReader()
         {
-            RunReaderTest(builder => builder.AddService<IJsonReaderFactory, TestJsonReaderFactory>(ServiceLifetime.Transient),
+            RunReaderTest(builder => builder.AddTransient<IJsonReaderFactory, TestJsonReaderFactory>(),
                 "<\"@context\":\"http://test/$metadata#People/$entity\",\"PersonId\":999,\"Name\":\"Jack\",>");
         }
 
-        private static void RunWriterTest(Action<IContainerBuilder> action, string expectedOutput)
+        private static void RunWriterTest(Action<IServiceCollection> action, string expectedOutput)
         {
             var resource = new ODataResource
             {
@@ -111,36 +114,44 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
             var model = BuildModel();
             var entitySet = model.FindDeclaredEntitySet("People");
             var entityType = model.GetEntityType("NS.Person");
-            var container = ContainerBuilderHelper.BuildContainer(action);
-            var output = GetWriterOutput(resource, model, entitySet, entityType, container);
+            var serviceProvider = ServiceProviderHelper.BuildServiceProvider(action);
+            var output = GetWriterOutput(resource, model, entitySet, entityType, serviceProvider);
             Assert.Equal(expectedOutput, output);
         }
 
-        private static void RunReaderTest(Action<IContainerBuilder> action, string messageContent)
+        private static void RunReaderTest(Action<IServiceCollection> action, string messageContent)
         {
             var model = BuildModel();
             var entitySet = model.FindDeclaredEntitySet("People");
             var entityType = model.GetEntityType("NS.Person");
-            var container = ContainerBuilderHelper.BuildContainer(action);
-            container.GetRequiredService<ODataSimplifiedOptions>().EnableReadingODataAnnotationWithoutPrefix = true;
-            var resource = GetReadedResource(messageContent, model, entitySet, entityType, container);
-            var propertyList = resource.Properties.ToList();
+            var serviceProvider = ServiceProviderHelper.BuildServiceProvider(action);
+
+            var readerSettings = new ODataMessageReaderSettings
+            {
+                EnableReadingODataAnnotationWithoutPrefix = true
+            };
+
+            var resource = GetReadedResource(messageContent, model, entitySet, entityType, serviceProvider, readerSettings);
+
+            var propertyList = resource.Properties.OfType<ODataProperty>().ToList();
             Assert.Equal("PersonId", propertyList[0].Name);
             Assert.Equal(999, propertyList[0].Value);
             Assert.Equal("Name", propertyList[1].Name);
             Assert.Equal("Jack", propertyList[1].Value);
         }
 
-        private static Dictionary<string, IEnumerable<ODataProperty>> RunComplexReaderTest(Action<IContainerBuilder> action, string messageContent)
+        private static Dictionary<string, IEnumerable<ODataPropertyInfo>> RunComplexReaderTest(Action<IServiceCollection> action, string messageContent)
         {
             var model = GetModel();
             var entitySet = model.FindDeclaredEntitySet("People");
             var entityType = model.GetEntityType("DefaultNs.Person");
-            var container = ContainerBuilderHelper.BuildContainer(action);
-            container.GetRequiredService<ODataSimplifiedOptions>().EnableReadingODataAnnotationWithoutPrefix = true;
-            var resource = GetReadedResourceWithNestedInfo(messageContent, model, entitySet, entityType, container);
 
-            var resourceDict = new Dictionary<string, IEnumerable<ODataProperty>>();
+            var serviceProvider = ServiceProviderHelper.BuildServiceProvider(action);
+            serviceProvider.GetRequiredService<ODataMessageReaderSettings>().EnableReadingODataAnnotationWithoutPrefix = true;
+
+            var resource = GetReadedResourceWithNestedInfo(messageContent, model, entitySet, entityType, serviceProvider);
+
+            var resourceDict = new Dictionary<string, IEnumerable<ODataPropertyInfo>>();
 
             foreach(var res in resource)
             {
@@ -282,7 +293,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
             IODataResponseMessage message = new InMemoryMessage
             {
                 Stream = outputStream,
-                Container = container
+                ServiceProvider = container
             };
             message.SetHeader("Content-Type", "application/json");
             var settings = new ODataMessageWriterSettings();
@@ -298,7 +309,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
             }
         }
 
-        private static ODataResource GetReadedResource(string messageContent, EdmModel model, IEdmEntitySetBase entitySet, EdmEntityType entityType, IServiceProvider container)
+        private static ODataResource GetReadedResource(string messageContent, EdmModel model, IEdmEntitySetBase entitySet, EdmEntityType entityType, IServiceProvider container, ODataMessageReaderSettings settings)
         {
             var outputStream = new MemoryStream();
             var writer = new StreamWriter(outputStream);
@@ -309,11 +320,10 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
             IODataResponseMessage message = new InMemoryMessage
             {
                 Stream = outputStream,
-                Container = container
+                ServiceProvider = container
             };
             message.SetHeader("Content-Type", "application/json");
 
-            var settings = new ODataMessageReaderSettings();
             using (var messageReader = new ODataMessageReader(message, settings, model))
             {
                 var reader = messageReader.CreateODataResourceReader(entitySet, entityType);
@@ -333,7 +343,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
             IODataResponseMessage message = new InMemoryMessage
             {
                 Stream = outputStream,
-                Container = container
+                ServiceProvider = container
             };
             message.SetHeader("Content-Type", "application/json;odata.metadata=full");
 
@@ -357,8 +367,10 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
 
         private class TestJsonWriterFactory : IJsonWriterFactory
         {
-            public IJsonWriter CreateJsonWriter(TextWriter textWriter, bool isIeee754Compatible)
+            public IJsonWriter CreateJsonWriter(Stream stream, bool isIeee754Compatible, Encoding encoding)
             {
+                var textWriter = new StreamWriter(stream);
+
                 return new TestJsonWriter(textWriter);
             }
         }
@@ -380,15 +392,9 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
                 this.textWriter = textWriter;
             }
 
-            public void StartPaddingFunctionScope()
-            {
-                throw new NotImplementedException();
-            }
+            public void StartPaddingFunctionScope() => throw new NotImplementedException();
 
-            public void EndPaddingFunctionScope()
-            {
-                throw new NotImplementedException();
-            }
+            public void EndPaddingFunctionScope() => throw new NotImplementedException();
 
             public void StartObjectScope()
             {
@@ -400,15 +406,9 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
                 this.textWriter.Write('>');
             }
 
-            public void StartArrayScope()
-            {
-                throw new NotImplementedException();
-            }
+            public void StartArrayScope() => throw new NotImplementedException();
 
-            public void EndArrayScope()
-            {
-                throw new NotImplementedException();
-            }
+            public void EndArrayScope() => throw new NotImplementedException();
 
             public void WriteName(string name)
             {
@@ -420,100 +420,147 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
                 this.textWriter.Write("\"{0}\":", name);
             }
 
-            public void WritePaddingFunctionName(string functionName)
-            {
-                throw new NotImplementedException();
-            }
+            public void WritePaddingFunctionName(string functionName) => throw new NotImplementedException();
 
-            public void WriteValue(bool value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(bool value) => throw new NotImplementedException();
 
             public void WriteValue(int value)
             {
                 this.textWriter.Write("{0},", value);
             }
 
-            public void WriteValue(float value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(float value) => throw new NotImplementedException();
 
-            public void WriteValue(short value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(short value) => throw new NotImplementedException();
 
-            public void WriteValue(long value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(long value) => throw new NotImplementedException();
 
-            public void WriteValue(double value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(double value) => throw new NotImplementedException();
 
-            public void WriteValue(Guid value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(Guid value) => throw new NotImplementedException();
 
-            public void WriteValue(decimal value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(decimal value) => throw new NotImplementedException();
 
-            public void WriteValue(DateTimeOffset value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(DateTimeOffset value) => throw new NotImplementedException();
 
-            public void WriteValue(TimeSpan value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(TimeSpan value) => throw new NotImplementedException();
 
-            public void WriteValue(byte value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(byte value) => throw new NotImplementedException();
 
-            public void WriteValue(sbyte value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(sbyte value) => throw new NotImplementedException();
 
             public void WriteValue(string value)
             {
                 this.textWriter.Write("\"{0}\",", value);
             }
 
-            public void WriteValue(byte[] value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(byte[] value) => throw new NotImplementedException();
 
-            public void WriteValue(Date value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(Date value) => throw new NotImplementedException();
 
-            public void WriteValue(TimeOfDay value)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(TimeOfDay value) => throw new NotImplementedException();
 
-            public void WriteRawValue(string rawValue)
-            {
-                throw new NotImplementedException();
-            }
+            public void WriteValue(System.Text.Json.JsonElement value) => throw new NotImplementedException();
+
+            public void WriteRawValue(string rawValue) => throw new NotImplementedException();
 
             public void Flush()
             {
                 this.textWriter.Flush();
             }
+
+            public Task StartPaddingFunctionScopeAsync() => throw new NotImplementedException();
+
+            public Task EndPaddingFunctionScopeAsync() => throw new NotImplementedException();
+
+            public Task StartObjectScopeAsync()
+            {
+                return this.textWriter.WriteAsync('<');
+            }
+
+            public Task EndObjectScopeAsync()
+            {
+                return this.textWriter.WriteAsync('>');
+            }
+
+            public Task StartArrayScopeAsync() => throw new NotImplementedException();
+
+            public Task EndArrayScopeAsync() => throw new NotImplementedException();
+
+            public async Task WriteNameAsync(string name)
+            {
+                if (name.StartsWith("@odata."))
+                {
+                    name = '@' + name.Substring(7);
+                }
+
+                await this.textWriter.WriteAsync(string.Format("\"{0}\":", name));
+            }
+
+            public Task WritePaddingFunctionNameAsync(string functionName) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(bool value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(int value)
+            {
+                return this.textWriter.WriteAsync(string.Format("{0},", value));
+            }
+
+            public Task WriteValueAsync(float value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(short value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(long value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(double value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(Guid value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(decimal value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(DateTimeOffset value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(TimeSpan value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(byte value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(sbyte value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(string value)
+            {
+                return this.textWriter.WriteAsync(string.Format("\"{0}\",", value));
+            }
+
+            public Task WriteValueAsync(byte[] value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(Date value) => throw new NotImplementedException();
+
+            public Task WriteValueAsync(TimeOfDay value) => throw new NotImplementedException();
+
+            public Task WriteRawValueAsync(string rawValue) => throw new NotImplementedException();
+
+            public Task FlushAsync()
+            {
+                return this.textWriter.FlushAsync();
+            }
+
+            public Task WriteValueAsync(JsonElement value) => throw new NotImplementedException();
+
+            public Stream StartStreamValueScope() => throw new NotImplementedException();
+
+            public TextWriter StartTextWriterValueScope(string contentType) => throw new NotImplementedException();
+
+            public void EndStreamValueScope() => throw new NotImplementedException();
+
+            public void EndTextWriterValueScope() => throw new NotImplementedException();
+
+            public Task<Stream> StartStreamValueScopeAsync() => throw new NotImplementedException();
+
+            public Task<TextWriter> StartTextWriterValueScopeAsync(string contentType) => throw new NotImplementedException();
+
+            public Task EndStreamValueScopeAsync() => throw new NotImplementedException();
+
+            public Task EndTextWriterValueScopeAsync() => throw new NotImplementedException();
         }
 
         private class TestJsonReader : IJsonReader
@@ -522,9 +569,9 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
             private object value;
             private JsonNodeType nodeType = JsonNodeType.None;
 
-            public object Value
+            public object GetValue()
             {
-                get { return this.value; }
+                return this.value;
             }
 
             public JsonNodeType NodeType
@@ -584,6 +631,22 @@ namespace Microsoft.OData.Tests.ScenarioTests.Roundtrip
                 ++callCount;
                 return true;
             }
+
+            public Task<bool> ReadAsync() => throw new NotImplementedException();
+
+            public bool CanStream() => throw new NotImplementedException();
+
+            public Task<bool> CanStreamAsync() => throw new NotImplementedException();
+
+            public Stream CreateReadStream() => throw new NotImplementedException();
+
+            public Task<Stream> CreateReadStreamAsync() => throw new NotImplementedException();
+
+            public TextReader CreateTextReader() => throw new NotImplementedException();
+
+            public Task<TextReader> CreateTextReaderAsync() => throw new NotImplementedException();
+
+            public Task<object> GetValueAsync() => throw new NotImplementedException();
         }
     }
 }

@@ -148,6 +148,9 @@ namespace Microsoft.OData.Evaluation
 
                 case EdmValueKind.TimeOfDay:
                     return ((IEdmTimeOfDayValue)edmValue).Value;
+
+                case EdmValueKind.Enum:
+                    return ((IEdmEnumValue)edmValue).Value.Value;
             }
 
             throw new ODataException(ErrorStrings.EdmValueUtils_CannotConvertTypeToClrValue(edmValue.ValueKind));
@@ -283,6 +286,12 @@ namespace Microsoft.OData.Evaluation
                 return new EdmDateConstant(dateType, (Date)primitiveValue);
             }
 
+            if (primitiveValue is DateOnly dateOnly)
+            {
+                IEdmPrimitiveTypeReference dateType = EnsurePrimitiveType(type, EdmPrimitiveTypeKind.Date);
+                return new EdmDateConstant(dateType, dateOnly);
+            }
+
             if (primitiveValue is DateTimeOffset)
             {
                 IEdmTemporalTypeReference dateTimeOffsetType = (IEdmTemporalTypeReference)EnsurePrimitiveType(type, EdmPrimitiveTypeKind.DateTimeOffset);
@@ -301,6 +310,12 @@ namespace Microsoft.OData.Evaluation
                 return new EdmTimeOfDayConstant(timeOfDayType, (TimeOfDay)primitiveValue);
             }
 
+            if (primitiveValue is TimeOnly timeOnly)
+            {
+                IEdmTemporalTypeReference timeOfDayType = (IEdmTemporalTypeReference)EnsurePrimitiveType(type, EdmPrimitiveTypeKind.TimeOfDay);
+                return new EdmTimeOfDayConstant(timeOfDayType, timeOnly);
+            }
+
             if (primitiveValue is TimeSpan)
             {
                 IEdmTemporalTypeReference timeType = (IEdmTemporalTypeReference)EnsurePrimitiveType(type, EdmPrimitiveTypeKind.Duration);
@@ -309,7 +324,7 @@ namespace Microsoft.OData.Evaluation
 
             if (primitiveValue is ISpatial)
             {
-                // TODO: [JsonLight] Add support for spatial values in ODataEdmStructuredValue
+                // TODO: [Json] Add support for spatial values in ODataEdmStructuredValue
                 throw new NotImplementedException();
             }
 

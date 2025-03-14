@@ -302,6 +302,13 @@ namespace Microsoft.OData
             }
 
             Debug.Assert(valuePrimitiveTypeReference.IsEquivalentTo(EdmLibraryExtensions.GetPrimitiveTypeReference(value.GetType())), "The value and valuePrimitiveTypeReference don't match.");
+
+            // If the expected type is 'Edm.Untyped', we don't need to verify the value type.
+            if (expectedTypeReference.IsUntyped())
+            {
+                return;
+            }
+
             if (!expectedTypeReference.IsODataPrimitiveTypeKind() && !expectedTypeReference.IsODataTypeDefinitionTypeKind())
             {
                 // non-primitive type found for primitive value.
@@ -442,7 +449,7 @@ namespace Microsoft.OData
         /// <returns>true if the property name is valid, otherwise false.</returns>
         internal static bool IsValidPropertyName(string propertyName)
         {
-            Debug.Assert(!string.IsNullOrEmpty(propertyName), "The ATOM or JSON reader should have verified that the property name is not null or empty.");
+            Debug.Assert(!string.IsNullOrEmpty(propertyName), "The JSON reader should have verified that the property name is not null or empty.");
 
             return propertyName.IndexOfAny(ValidationUtils.InvalidCharactersInPropertyNames) < 0;
         }

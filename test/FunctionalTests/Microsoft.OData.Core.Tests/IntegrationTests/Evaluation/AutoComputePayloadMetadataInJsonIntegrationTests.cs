@@ -9,9 +9,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Microsoft.OData.UriParser;
+using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OData.Core.Tests.DependencyInjection;
 using Microsoft.OData.Edm;
-using Microsoft.Test.OData.DependencyInjection;
+using Microsoft.OData.UriParser;
 using Xunit;
 
 namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
@@ -437,14 +439,14 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
                 ContainsTarget = true
             });
 
-            var container = new EdmEntityContainer("Namespace", "Container");
-            EntitySet = container.AddEntitySet("EntitySet", EntityType);
+            var entityContainer = new EdmEntityContainer("Namespace", "Container");
+            EntitySet = entityContainer.AddEntitySet("EntitySet", EntityType);
 
             EntitySet.AddNavigationTarget(deferredNavLinkProp, EntitySet);
             EntitySet.AddNavigationTarget(expandedNavLinkProp, EntitySet);
             EntitySet.AddNavigationTarget(navLinkDeclaredOnlyInModelProp, EntitySet);
 
-            AnotherEntitySet = container.AddEntitySet("AnotherEntitySet", AnotherEntityType);
+            AnotherEntitySet = entityContainer.AddEntitySet("AnotherEntitySet", AnotherEntityType);
 
             Model = new EdmModel();
             Model.AddElement(Gender);
@@ -452,56 +454,56 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
             Model.AddElement(DerivedType);
             Model.AddElement(AnotherEntityType);
             Model.AddElement(EnumAsKeyEntityType);
-            Model.AddElement(container);
+            Model.AddElement(entityContainer);
             Model.SetOptimisticConcurrencyAnnotation(EntitySet, new[] { nameProperty });
 
             var alwaysBindableAction1 = new EdmAction("Namespace", "AlwaysBindableAction1", null /*returnType*/, true /*isBound*/, null /*entitySetPath*/);
             alwaysBindableAction1.AddParameter(new EdmOperationParameter(alwaysBindableAction1, "p", new EdmEntityTypeReference(EntityType, isNullable: true)));
             Model.AddElement(alwaysBindableAction1);
-            var alwaysBindableActionImport1 = new EdmActionImport(container, "AlwaysBindableAction1", alwaysBindableAction1);
-            container.AddElement(alwaysBindableActionImport1);
+            var alwaysBindableActionImport1 = new EdmActionImport(entityContainer, "AlwaysBindableAction1", alwaysBindableAction1);
+            entityContainer.AddElement(alwaysBindableActionImport1);
 
             var alwaysBindableAction2 = new EdmAction("Namespace", "AlwaysBindableAction2", null /*returnType*/, true /*isBound*/, null /*entitySetPath*/);
             alwaysBindableAction2.AddParameter(new EdmOperationParameter(alwaysBindableAction2, "p", new EdmEntityTypeReference(EntityType, isNullable: true)));
             Model.AddElement(alwaysBindableAction2);
-            var alwaysBindableActionImport2 = new EdmActionImport(container, "AlwaysBindableAction2", alwaysBindableAction2);
-            container.AddElement(alwaysBindableActionImport2);
+            var alwaysBindableActionImport2 = new EdmActionImport(entityContainer, "AlwaysBindableAction2", alwaysBindableAction2);
+            entityContainer.AddElement(alwaysBindableActionImport2);
 
             var action1 = new EdmAction("Namespace", "Action1", null /*returnType*/, false /*isBound*/, null /*entitySetPath*/);
             action1.AddParameter(new EdmOperationParameter(action1, "p", new EdmEntityTypeReference(EntityType, isNullable: true)));
             Model.AddElement(action1);
-            var actionImport1 = new EdmActionImport(container, "Action1", action1);
-            container.AddElement(actionImport1);
+            var actionImport1 = new EdmActionImport(entityContainer, "Action1", action1);
+            entityContainer.AddElement(actionImport1);
 
             var action2 = new EdmAction("Namespace", "Action1", null /*returnType*/, false /*isBound*/, null /*entitySetPath*/);
             action2.AddParameter(new EdmOperationParameter(action2, "p", new EdmEntityTypeReference(EntityType, isNullable: true)));
             Model.AddElement(action2);
-            var actionImport2 = new EdmActionImport(container, "Action1", action2);
-            container.AddElement(actionImport2);
+            var actionImport2 = new EdmActionImport(entityContainer, "Action1", action2);
+            entityContainer.AddElement(actionImport2);
 
             var alwaysBindableFunction1 = new EdmFunction("Namespace", "AlwaysBindableFunction1", EdmCoreModel.Instance.GetString(isNullable: true), true /*isBound*/, null /*entitySetPath*/, false /*iscomposable*/);
             alwaysBindableFunction1.AddParameter("p", new EdmEntityTypeReference(EntityType, isNullable: true));
             Model.AddElement(alwaysBindableFunction1);
-            var alwaysBindableFunctionImport1 = new EdmFunctionImport(container, "AlwaysBindableFunction1", alwaysBindableFunction1);
-            container.AddElement(alwaysBindableFunctionImport1);
+            var alwaysBindableFunctionImport1 = new EdmFunctionImport(entityContainer, "AlwaysBindableFunction1", alwaysBindableFunction1);
+            entityContainer.AddElement(alwaysBindableFunctionImport1);
 
             var alwaysBindableFunction2 = new EdmFunction("Namespace", "AlwaysBindableFunction2", EdmCoreModel.Instance.GetString(isNullable: true), true /*isBound*/, null /*entitySetPath*/, false /*iscomposable*/);
             alwaysBindableFunction2.AddParameter("p", new EdmEntityTypeReference(EntityType, isNullable: true));
             Model.AddElement(alwaysBindableFunction2);
-            var alwaysBindableFunctionImport2 = new EdmFunctionImport(container, "AlwaysBindableFunction2", alwaysBindableFunction2);
-            container.AddElement(alwaysBindableFunctionImport2);
+            var alwaysBindableFunctionImport2 = new EdmFunctionImport(entityContainer, "AlwaysBindableFunction2", alwaysBindableFunction2);
+            entityContainer.AddElement(alwaysBindableFunctionImport2);
 
             var function1 = new EdmFunction("Namespace", "Function1", EdmCoreModel.Instance.GetString(isNullable: true), false /*isBound*/, null /*entitySetPath*/, false /*iscomposable*/);
             function1.AddParameter("p", new EdmEntityTypeReference(EntityType, isNullable: true));
             Model.AddElement(function1);
-            var functionImport1 = new EdmFunctionImport(container, "Function1", function1);
-            container.AddElement(functionImport1);
+            var functionImport1 = new EdmFunctionImport(entityContainer, "Function1", function1);
+            entityContainer.AddElement(functionImport1);
 
             var function2 = new EdmFunction("Namespace", "Function2", EdmCoreModel.Instance.GetString(isNullable: true), false /*isBound*/, null /*entitySetPath*/, false /*iscomposable*/);
             function2.AddParameter("p", new EdmEntityTypeReference(EntityType, isNullable: true));
             Model.AddElement(function2);
-            var functionImport2 = new EdmFunctionImport(container, "Function2", function2);
-            container.AddElement(functionImport2);
+            var functionImport2 = new EdmFunctionImport(entityContainer, "Function2", function2);
+            entityContainer.AddElement(functionImport2);
 
             var function3 = new EdmFunction("Namespace", "Function3", new EdmEntityTypeReference(EntityType, false), true /*isBound*/, new EdmPathExpression("p/ContainedNonCollectionNavProp"), false /*iscomposable*/);
             function3.AddParameter("p", new EdmEntityTypeReference(EntityType, isNullable: true));
@@ -546,10 +548,10 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
                 ContainsTarget = true
             });
 
-            var container = new EdmEntityContainer("NS", "Container");
-            var entitySet = container.AddEntitySet("EntitySet", entityType);
+            var serviceProvider = new EdmEntityContainer("NS", "Container");
+            var entitySet = serviceProvider.AddEntitySet("EntitySet", entityType);
 
-            model.AddElements(new IEdmSchemaElement[] { entityType, nestedEntityType, container });
+            model.AddElements(new IEdmSchemaElement[] { entityType, nestedEntityType, serviceProvider });
 
             // setup writer
             string str;
@@ -568,7 +570,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
                 var writer = new ODataMessageWriter((IODataResponseMessage)message, settings, model);
 
                 // write payload
-                var entitySetWriter = writer.CreateODataResourceSetWriter(entitySet, entitySet.EntityType());
+                var entitySetWriter = writer.CreateODataResourceSetWriter(entitySet, entitySet.EntityType);
                 entitySetWriter.WriteStart(new ODataResourceSet());
                 var resource = new ODataResource
                 {
@@ -667,9 +669,9 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
             var entityType = new EdmEntityType("NS", "EntityType", null, false, true);
             entityType.AddKeys(
                 entityType.AddStructuralProperty("PrimitiveProperty", EdmPrimitiveTypeKind.Int64));
-            var container = new EdmEntityContainer("NS", "Container");
-            var entitySet = container.AddEntitySet("EntitySet", entityType);
-            model.AddElements(new IEdmSchemaElement[] { complexType, entityType, container });
+            var serviceProvider = new EdmEntityContainer("NS", "Container");
+            var entitySet = serviceProvider.AddEntitySet("EntitySet", entityType);
+            model.AddElements(new IEdmSchemaElement[] { complexType, entityType, serviceProvider });
 
             // setup writer
             var stream = new MemoryStream();
@@ -786,9 +788,9 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
             var entityType = new EdmEntityType("NS", "EntityType", null, false, true);
             entityType.AddKeys(
                 entityType.AddStructuralProperty("PrimitiveProperty", EdmPrimitiveTypeKind.Int64));
-            var container = new EdmEntityContainer("NS", "Container");
-            var entitySet = container.AddEntitySet("EntitySet", entityType);
-            model.AddElements(new IEdmSchemaElement[] { complexType, entityType, container });
+            var serviceProvider = new EdmEntityContainer("NS", "Container");
+            var entitySet = serviceProvider.AddEntitySet("EntitySet", entityType);
+            model.AddElements(new IEdmSchemaElement[] { complexType, entityType, serviceProvider });
 
             // setup writer
             var stream = new MemoryStream();
@@ -1157,9 +1159,9 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
                 TargetMultiplicity = EdmMultiplicity.Many
             });
 
-            var container = new EdmEntityContainer("NS", "Container");
-            var customers = container.AddEntitySet("Customers", customer);
-            model.AddElement(container);
+            var serviceProvider = new EdmEntityContainer("NS", "Container");
+            var customers = serviceProvider.AddEntitySet("Customers", customer);
+            model.AddElement(serviceProvider);
 
             var message = new InMemoryMessage { Stream = stream };
             var settings = new ODataMessageWriterSettings
@@ -1232,7 +1234,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
             ODataResource entityValue = new ODataResource
             {
                 TypeName = "NS.Customer",
-                Properties = new[] { new ODataProperty { Name = "Id", Value = 42 }}
+                Properties = new[] { new ODataProperty { Name = "Id", Value = 42 } }
             };
             resourceWriter.WriteStart(entityValue);
             resourceWriter.WriteEnd();
@@ -1318,14 +1320,14 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
             // #1
             ODataResource nestedResource = nestedResources.First(c => c.TypeName == "NS.Address");
             Assert.Equal(3, nestedResource.Properties.Count());
-            Assert.Equal("Redmond", nestedResource.Properties.First(p => p.Name == "City").Value);
-            Assert.Equal(98052, nestedResource.Properties.First(p => p.Name == "ZipCode").Value);
-            Assert.Equal(true, nestedResource.Properties.First(p => p.Name == "Data").Value);
+            Assert.Equal("Redmond", Assert.IsType<ODataProperty>(nestedResource.Properties.First(p => p.Name == "City")).Value);
+            Assert.Equal(98052, Assert.IsType<ODataProperty>(nestedResource.Properties.First(p => p.Name == "ZipCode")).Value);
+            Assert.Equal(true, Assert.IsType<ODataProperty>(nestedResource.Properties.First(p => p.Name == "Data")).Value);
 
             // #2
             nestedResource = nestedResources.First(c => c.TypeName == "NS.Customer");
             Assert.Single(nestedResource.Properties);
-            Assert.Equal(42, nestedResource.Properties.First(p => p.Name == "Id").Value);
+            Assert.Equal(42, Assert.IsType<ODataProperty>(nestedResource.Properties.First(p => p.Name == "Id")).Value);
         }
 
         private static IEdmModel GetModelWithAbstractType(out EdmEntitySet entitySet)
@@ -1339,9 +1341,9 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
             customer.AddKeys(customer.AddStructuralProperty("Id", EdmPrimitiveTypeKind.Int32));
             // <Property Name="ComplexProperty" Type="Edm.ComplexType" />
             customer.AddStructuralProperty("ComplexProperty", EdmCoreModel.Instance.GetComplexType(true));
-            var container = new EdmEntityContainer("NS", "Container");
-            entitySet = container.AddEntitySet("Customers", customer);
-            model.AddElements(new IEdmSchemaElement[] { complexType, customer, container });
+            var serviceProvider = new EdmEntityContainer("NS", "Container");
+            entitySet = serviceProvider.AddEntitySet("Customers", customer);
+            model.AddElements(new IEdmSchemaElement[] { complexType, customer, serviceProvider });
 
             IEdmEntityType entityType = EdmCoreModel.Instance.GetEntityType();
             // <NavigationProperty Name="EntityProperty" Type="Edm.EntityType" />
@@ -1354,6 +1356,262 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
                 });
             entitySet.AddNavigationTarget(navProperty, entitySet);
             return model;
+        }
+
+        [Theory]
+        [InlineData("minimal")]
+        [InlineData("full")]
+        public void WritingContainedNavigationPropertyWithoutProvideKeyPropertyOnParentResourceWorks(string metadataLevel)
+        {
+            MemoryStream outputStream = new MemoryStream();
+            var serviceProvider = ServiceProviderHelper.BuildServiceProvider(null);
+            IODataResponseMessage message = new InMemoryMessage() { Stream = outputStream, ServiceProvider = serviceProvider };
+
+            message.SetHeader("Content-Type", metadataLevel == "full" ? "application/json;odata.metadata=full" : "application/json");
+            var queryOptions = new ODataQueryOptionParser(Model, EntityType, EntitySet,
+                new Dictionary<string, string> { { "$select", "Name" }, { "$expand", "ContainedNavProp" } }).ParseSelectAndExpand();
+
+            ODataUri odataUri = new ODataUri()
+            {
+                ServiceRoot = new Uri("http://example.com"),
+                SelectAndExpand = queryOptions
+            };
+
+            Uri requestUri = new Uri("http://example.com/EntitySet(1)");
+            odataUri.RequestUri = requestUri;
+            odataUri.Path = new ODataUriParser(Model, new Uri("http://example.com"), requestUri).ParsePath();
+
+            string output;
+            ODataMessageWriterSettings settings = new ODataMessageWriterSettings
+            {
+                ODataUri = odataUri
+            };
+            using (var messageWriter = new ODataMessageWriter(message, settings, Model))
+            {
+                ODataWriter writer = messageWriter.CreateODataResourceWriter(EntitySet, EntityType);
+
+                ODataResource resource = new ODataResource
+                {
+                    TypeName = "Namespace.EntityType",
+                    Properties = new[]
+                    {
+                        new ODataProperty { Name = "Name", Value = "SampleName" }
+                    }
+                };
+
+                if (metadataLevel == "full")
+                {
+                    resource.Id = new Uri("http://example.com/EntitySet(1)");
+                }
+
+                writer.WriteStart(resource);
+                ODataNestedResourceInfo nestedResourceInfo = new ODataNestedResourceInfo
+                {
+                    IsCollection = true,
+                    Name = "ContainedNavProp"
+                };
+                writer.WriteStart(nestedResourceInfo);
+                writer.WriteStart(new ODataResourceSet());
+                writer.WriteEnd(); // end of nested resource set
+                writer.WriteEnd(); // end of nested resource info
+                writer.WriteEnd(); // end of resource
+
+                outputStream.Seek(0, SeekOrigin.Begin);
+                output = new StreamReader(outputStream).ReadToEnd();
+            }
+
+            if (metadataLevel == "full")
+            {
+                Assert.Equal("{\"@odata.context\":\"http://example.com/$metadata#EntitySet(Name,ContainedNavProp())/$entity\"," +
+                  "\"@odata.type\":\"#Namespace.EntityType\"," +
+                  "\"@odata.id\":\"http://example.com/EntitySet(1)\"," +
+                  "\"@odata.etag\":\"W/\\\"'SampleName'\\\"\"," +
+                  "\"@odata.editLink\":\"EntitySet(1)\"," +
+                  "\"@odata.mediaEditLink\":\"EntitySet(1)/$value\"," +
+                  "\"Name\":\"SampleName\"," +
+                  "\"ContainedNavProp@odata.associationLink\":\"http://example.com/EntitySet(1)/ContainedNavProp/$ref\"," +
+                  "\"ContainedNavProp@odata.navigationLink\":\"http://example.com/EntitySet(1)/ContainedNavProp\"," +
+                  "\"ContainedNavProp\":[]}", output);
+            }
+            else
+            {
+                Assert.Equal("{\"@odata.context\":\"http://example.com/$metadata#EntitySet(Name,ContainedNavProp())/$entity\"," +
+                  "\"Name\":\"SampleName\"," +
+                  "\"ContainedNavProp\":[]}", output);
+            }
+        }
+
+        [Theory]
+        [InlineData("minimal")]
+        [InlineData("full")]
+        public void WritingContainedNavigationPropertyWithKeyPropertyOnParentResourceWorks(string metadataLevel)
+        {
+            MemoryStream outputStream = new MemoryStream();
+            var serviceProvider = ServiceProviderHelper.BuildServiceProvider(null);
+            IODataResponseMessage message = new InMemoryMessage() { Stream = outputStream, ServiceProvider = serviceProvider };
+
+            message.SetHeader("Content-Type", metadataLevel == "full" ? "application/json;odata.metadata=full" : "application/json");
+            var queryOptions = new ODataQueryOptionParser(Model, EntityType, EntitySet,
+                new Dictionary<string, string> { { "$select", "ID,Name" }, { "$expand", "ContainedNavProp" } }).ParseSelectAndExpand();
+
+            ODataUri odataUri = new ODataUri()
+            {
+                ServiceRoot = new Uri("http://example.com"),
+                SelectAndExpand = queryOptions
+            };
+
+            Uri requestUri = new Uri("http://example.com/EntitySet(42)");
+            odataUri.RequestUri = requestUri;
+            odataUri.Path = new ODataUriParser(Model, new Uri("http://example.com"), requestUri).ParsePath();
+
+            string output;
+            ODataMessageWriterSettings settings = new ODataMessageWriterSettings
+            {
+                ODataUri = odataUri
+            };
+            using (var messageWriter = new ODataMessageWriter(message, settings, Model))
+            {
+                ODataWriter writer = messageWriter.CreateODataResourceWriter(EntitySet, EntityType);
+
+                ODataResource resource = new ODataResource
+                {
+                    TypeName = "Namespace.EntityType",
+                    Properties = new[]
+                    {
+                        new ODataProperty { Name = "Name", Value = "SampleName" },
+                        new ODataProperty { Name = "ID", Value = 42 }
+                    }
+                };
+
+                if (metadataLevel == "full")
+                {
+                    resource.Id = new Uri("http://example.com/EntitySet(42)");
+                }
+
+                writer.WriteStart(resource);
+                ODataNestedResourceInfo nestedResourceInfo = new ODataNestedResourceInfo
+                {
+                    IsCollection = true,
+                    Name = "ContainedNavProp"
+                };
+                writer.WriteStart(nestedResourceInfo);
+                writer.WriteStart(new ODataResourceSet());
+                writer.WriteEnd(); // end of nested resource set
+                writer.WriteEnd(); // end of nested resource info
+                writer.WriteEnd(); // end of resource
+
+                outputStream.Seek(0, SeekOrigin.Begin);
+                output = new StreamReader(outputStream).ReadToEnd();
+            }
+
+            if (metadataLevel == "full")
+            {
+                Assert.Equal("{\"@odata.context\":\"http://example.com/$metadata#EntitySet(ID,Name,ContainedNavProp())/$entity\"," +
+                  "\"@odata.type\":\"#Namespace.EntityType\"," +
+                  "\"@odata.id\":\"http://example.com/EntitySet(42)\"," +
+                  "\"@odata.etag\":\"W/\\\"'SampleName'\\\"\"," +
+                  "\"@odata.editLink\":\"EntitySet(42)\"," +
+                  "\"@odata.mediaEditLink\":\"EntitySet(42)/$value\"," +
+                  "\"Name\":\"SampleName\"," +
+                  "\"ID\":42," +
+                  "\"ContainedNavProp@odata.associationLink\":\"http://example.com/EntitySet(42)/ContainedNavProp/$ref\"," +
+                  "\"ContainedNavProp@odata.navigationLink\":\"http://example.com/EntitySet(42)/ContainedNavProp\"," +
+                  "\"ContainedNavProp\":[]}", output);
+            }
+            else
+            {
+                Assert.Equal("{\"@odata.context\":\"http://example.com/$metadata#EntitySet(ID,Name,ContainedNavProp())/$entity\"," +
+                  "\"Name\":\"SampleName\"," +
+                  "\"ID\":42," +
+                  "\"ContainedNavProp\":[]}", output);
+            }
+        }
+
+        [Theory]
+        [InlineData("minimal")]
+        [InlineData("full")]
+        public async Task WritingContainedNavigationPropertyWithoutProvideKeyPropertyOnParentResourceSetWorks(string metadataLevel)
+        {
+            MemoryStream outputStream = new MemoryStream();
+            var serviceProvider = ServiceProviderHelper.BuildServiceProvider(null);
+            IODataResponseMessage message = new InMemoryMessage() { Stream = outputStream, ServiceProvider = serviceProvider };
+
+            message.SetHeader("Content-Type", metadataLevel == "full" ? "application/json;odata.metadata=full" : "application/json");
+            var queryOptions = new ODataQueryOptionParser(Model, EntityType, EntitySet,
+                new Dictionary<string, string> { { "$select", "Name" }, { "$expand", "ContainedNavProp" } }).ParseSelectAndExpand();
+
+            ODataUri odataUri = new ODataUri()
+            {
+                ServiceRoot = new Uri("http://example.com"),
+                SelectAndExpand = queryOptions
+            };
+
+            Uri requestUri = new Uri("http://example.com/EntitySet");
+            odataUri.RequestUri = requestUri;
+            odataUri.Path = new ODataUriParser(Model, new Uri("http://example.com"), requestUri).ParsePath();
+
+            string output;
+            ODataMessageWriterSettings settings = new ODataMessageWriterSettings
+            {
+                ODataUri = odataUri
+            };
+            using (var messageWriter = new ODataMessageWriter(message, settings, Model))
+            {
+                ODataWriter writer = await messageWriter.CreateODataResourceSetWriterAsync(EntitySet, EntityType);
+                await writer.WriteStartAsync(new ODataResourceSet());
+                ODataResource resource = new ODataResource
+                {
+                    TypeName = "Namespace.EntityType",
+                    Properties = new[]
+                    {
+                        new ODataProperty { Name = "Name", Value = "SampleName" }
+                    }
+                };
+
+                if (metadataLevel == "full")
+                {
+                    resource.Id = new Uri("http://example.com/EntitySet(1)");
+                }
+
+                await writer.WriteStartAsync(resource);
+                ODataNestedResourceInfo nestedResourceInfo = new ODataNestedResourceInfo
+                {
+                    IsCollection = true,
+                    Name = "ContainedNavProp"
+                };
+                await writer.WriteStartAsync(nestedResourceInfo);
+                await writer.WriteStartAsync(new ODataResourceSet());
+                await writer.WriteEndAsync(); // end of nested resource set
+                await writer.WriteEndAsync(); // end of nested resource info
+                await writer.WriteEndAsync(); // end of resource
+                await writer.WriteEndAsync(); // end of resourceset
+
+                outputStream.Seek(0, SeekOrigin.Begin);
+                output = new StreamReader(outputStream).ReadToEnd();
+            }
+
+            if (metadataLevel == "full")
+            {
+                Assert.Equal("{\"@odata.context\":\"http://example.com/$metadata#EntitySet(Name,ContainedNavProp())\"," +
+                    "\"value\":[" +
+                    "{" +
+                      "\"@odata.type\":\"#Namespace.EntityType\"," +
+                      "\"@odata.id\":\"http://example.com/EntitySet(1)\"," +
+                      "\"@odata.etag\":\"W/\\\"'SampleName'\\\"\"," +
+                      "\"@odata.editLink\":\"EntitySet(1)\"," +
+                      "\"@odata.mediaEditLink\":\"EntitySet(1)/$value\"," +
+                      "\"Name\":\"SampleName\"," +
+                      "\"ContainedNavProp@odata.associationLink\":\"http://example.com/EntitySet(1)/ContainedNavProp/$ref\"," +
+                      "\"ContainedNavProp@odata.navigationLink\":\"http://example.com/EntitySet(1)/ContainedNavProp\"," +
+                      "\"ContainedNavProp\":[]}]}", output);
+            }
+            else
+            {
+                Assert.Equal("{\"@odata.context\":\"http://example.com/$metadata#EntitySet(Name,ContainedNavProp())\"," +
+                    "\"value\":[" +
+                      "{\"Name\":\"SampleName\",\"ContainedNavProp\":[]}" +
+                    "]}", output);
+            }
         }
 
         [Fact]
@@ -1429,7 +1687,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
                                            "\"UnknownNonCollectionNavProp@odata.navigationLink\":\"http://example.com/EntitySet(123)/UnknownNonCollectionNavProp\"," +
                                            "\"UnknownCollectionNavProp@odata.associationLink\":\"http://example.com/EntitySet(123)/UnknownCollectionNavProp/$ref\"," +
                                            "\"UnknownCollectionNavProp@odata.navigationLink\":\"http://example.com/EntitySet(123)/UnknownCollectionNavProp\"," +
-                                           "\"EnumAsKeyContainedNavProp@odata.associationLink\":\"http://example.com/EntitySet(123)/EnumAsKeyContainedNavProp/$ref\","+
+                                           "\"EnumAsKeyContainedNavProp@odata.associationLink\":\"http://example.com/EntitySet(123)/EnumAsKeyContainedNavProp/$ref\"," +
                                            "\"EnumAsKeyContainedNavProp@odata.navigationLink\":\"http://example.com/EntitySet(123)/EnumAsKeyContainedNavProp\"," +
                                            "\"StreamProp1@odata.mediaEditLink\":\"http://example.com/EntitySet(123)/StreamProp1\"," +
                                            "\"StreamProp1@odata.mediaReadLink\":\"http://example.com/EntitySet(123)/StreamProp1\"," +
@@ -1826,7 +2084,7 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
         }
 
         [Fact]
-        public void WritingInFullMetadataModeForNavigationPropertyWithoutBindingShouldThrowODataResourceTypeContext_MetadataOrSerializationInfoMissingException()
+        public void WritingInFullMetadataModeForNavigationPropertyWithoutBindingShouldPass()
         {
             ODataItem[] itemsToWrite = new ODataItem[]
             {
@@ -1837,8 +2095,8 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
             const string selectClause = "UnknownCollectionNavProp";
             const string expandClause = "ExpandedNavLink($expand=UnknownCollectionNavProp)";
 
-            Action test = () => this.GetWriterOutputForContentTypeAndKnobValue("application/json;odata.metadata=full", true, itemsToWrite, Model, EntitySet, EntityType, selectClause, expandClause);
-            test.Throws<ODataException>(Strings.ODataMetadataBuilder_UnknownEntitySet("UnknownCollectionNavProp"));
+            this.GetWriterOutputForContentTypeAndKnobValue("application/json;odata.metadata=full", true, itemsToWrite, Model, EntitySet, EntityType, selectClause, expandClause);
+            Assert.Equal(new Uri("http://example.com/EntitySet(123)/UnknownCollectionNavProp(234)"),this.entryWithOnlyData2.Id);
         }
 
         [Fact]
@@ -1852,13 +2110,13 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
 
             this.entryWithOnlyData2.TypeName = EntityType.FullName();
             this.entryWithOnlyData2.MediaResource = new ODataStreamReferenceValue();
-            this.entryWithOnlyData2.Properties.First(p => p.Name == "ID").SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.Key });
-            this.entryWithOnlyData2.Properties.First(p => p.Name == "Name").SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.ETag });
+            ((ODataProperty)this.entryWithOnlyData2.Properties.First(p => p.Name == "ID")).SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.Key });
+            ((ODataProperty)this.entryWithOnlyData2.Properties.First(p => p.Name == "Name")).SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.ETag });
             this.entryWithOnlyData2.SerializationInfo = new ODataResourceSerializationInfo()
             {
                 NavigationSourceKind = EdmNavigationSourceKind.EntitySet,
                 ExpectedTypeName = EntityType.FullName(),
-                NavigationSourceEntityTypeName = EntitySet.EntityType().FullName(),
+                NavigationSourceEntityTypeName = EntitySet.EntityType.FullName(),
                 IsFromCollection = true,
                 NavigationSourceName = EntitySet.Name
             };
@@ -2433,16 +2691,16 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
             feed.SetSerializationInfo(serializationInfo);
             this.entryWithOnlyData.TypeName = EntityType.FullName();
             this.entryWithOnlyData.MediaResource = new ODataStreamReferenceValue();
-            this.entryWithOnlyData.Properties.First(p => p.Name == "ID").SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.Key });
-            this.entryWithOnlyData.Properties.First(p => p.Name == "Name").SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.ETag });
+            ((ODataProperty)this.entryWithOnlyData.Properties.First(p => p.Name == "ID")).SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.Key });
+            ((ODataProperty)this.entryWithOnlyData.Properties.First(p => p.Name == "Name")).SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.ETag });
             this.entryWithOnlyData2.TypeName = EntityType.FullName();
             this.entryWithOnlyData2.MediaResource = new ODataStreamReferenceValue();
-            this.entryWithOnlyData2.Properties.First(p => p.Name == "ID").SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.Key });
-            this.entryWithOnlyData2.Properties.First(p => p.Name == "Name").SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.ETag });
+            ((ODataProperty)this.entryWithOnlyData2.Properties.First(p => p.Name == "ID")).SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.Key });
+            ((ODataProperty)this.entryWithOnlyData2.Properties.First(p => p.Name == "Name")).SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.ETag });
             this.entryWithOnlyData3.TypeName = EntityType.FullName();
             this.entryWithOnlyData3.MediaResource = new ODataStreamReferenceValue();
-            this.entryWithOnlyData3.Properties.First(p => p.Name == "ID").SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.Key });
-            this.entryWithOnlyData3.Properties.First(p => p.Name == "Name").SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.ETag });
+            ((ODataProperty)this.entryWithOnlyData3.Properties.First(p => p.Name == "ID")).SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.Key });
+            ((ODataProperty)this.entryWithOnlyData3.Properties.First(p => p.Name == "Name")).SetSerializationInfo(new ODataPropertySerializationInfo { PropertyKind = ODataPropertyKind.ETag });
 
             ODataItem[] itemsToWrite = new ODataItem[]
             {
@@ -2949,12 +3207,14 @@ namespace Microsoft.OData.Tests.IntegrationTests.Evaluation
         private string GetWriterOutputForContentTypeAndKnobValue(string contentType, bool autoComputePayloadMetadata, ODataItem[] itemsToWrite, EdmModel edmModel, IEdmEntitySetBase edmEntitySet, EdmEntityType edmEntityType, string selectClause = null, string expandClause = null, string resourcePath = null, bool enableWritingODataAnnotationWithoutPrefix = false)
         {
             MemoryStream outputStream = new MemoryStream();
-            var container = ContainerBuilderHelper.BuildContainer(null);
-            container.GetRequiredService<ODataSimplifiedOptions>().SetOmitODataPrefix(enableWritingODataAnnotationWithoutPrefix);
-            IODataResponseMessage message = new InMemoryMessage() { Stream = outputStream, Container = container };
+            var serviceProvider = ServiceProviderHelper.BuildServiceProvider(null);
+
+            serviceProvider.GetRequiredService<ODataMessageWriterSettings>().SetOmitODataPrefix(enableWritingODataAnnotationWithoutPrefix);
+            IODataResponseMessage message = new InMemoryMessage() { Stream = outputStream, ServiceProvider = serviceProvider };
 
             message.SetHeader("Content-Type", contentType);
             ODataMessageWriterSettings settings = new ODataMessageWriterSettings();
+            settings.SetOmitODataPrefix(enableWritingODataAnnotationWithoutPrefix);
             var result = new ODataQueryOptionParser(edmModel, edmEntityType, edmEntitySet, new Dictionary<string, string> { { "$select", selectClause }, { "$expand", expandClause } }).ParseSelectAndExpand();
 
             ODataUri odataUri = new ODataUri()

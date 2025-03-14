@@ -21,9 +21,9 @@ namespace Microsoft.OData
         /// <summary>The characters that are considered to be whitespace by XmlConvert.</summary>
         private static readonly char[] XmlWhitespaceChars = new char[] { ' ', '\t', '\n', '\r' };
 
-        /// <summary>Converts the specified value to a serializable string in ATOM format.</summary>
+        /// <summary>Converts the specified value to a serializable string.</summary>
         /// <param name="value">Non-null value to convert.</param>
-        /// <param name="result">The specified value converted to an ATOM string.</param>
+        /// <param name="result">The specified value converted to a string.</param>
         /// <returns>boolean value indicating conversion successful conversion</returns>
         internal static bool TryConvertPrimitiveToString(object value, out string result)
         {
@@ -123,10 +123,22 @@ namespace Microsoft.OData
                 return true;
             }
 
+            if (value is DateOnly dateOnly)
+            {
+                result = ODataRawValueConverter.ToString(dateOnly);
+                return true;
+            }
+
             if (value is TimeOfDay)
             {
                 // Edm.TimeOfDay
                 result = ODataRawValueConverter.ToString((TimeOfDay)value);
+                return true;
+            }
+
+            if (value is TimeOnly timeOnly)
+            {
+                result = ODataRawValueConverter.ToString(timeOnly);
                 return true;
             }
 

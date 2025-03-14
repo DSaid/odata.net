@@ -12,9 +12,8 @@ namespace Microsoft.OData
     using System.Linq;
     using System.Text;
     using Microsoft.OData.Edm;
-    using Microsoft.OData.JsonLight;
+    using Microsoft.OData.Json;
     using Microsoft.OData.Metadata;
-    using Microsoft.OData.UriParser;
     #endregion Namespaces
 
     /// <summary>
@@ -217,7 +216,7 @@ namespace Microsoft.OData
         /// <param name="expectStructuredType">This value indicates if a structured type is expected to be return.
         /// True for structured type, false for non-structured type, null for indetermination.</param>
         /// <param name="defaultPrimitivePayloadType">The default payload type if none is specified in the payload;
-        /// for ATOM this is Edm.String, for JSON it is null since there is no payload type name for primitive types in the payload.</param>
+        /// for JSON it is null since there is no payload type name for primitive types in the payload.</param>
         /// <param name="expectedTypeReference">The expected type reference, or null if no expected type is available.</param>
         /// <param name="payloadTypeName">The payload type name, or null if no payload type was specified.</param>
         /// <param name="model">The model to use.</param>
@@ -338,7 +337,7 @@ namespace Microsoft.OData
         /// <param name="payloadType">The resolved payload type, or null if no payload type was specified.</param>
         /// <param name="payloadTypeName">The name of the payload type, or null if no payload type was specified.</param>
         /// <param name="defaultPayloadType">The default payload type if none is specified in the payload;
-        /// for ATOM this is Edm.String, for JSON it is null since there is no payload type name for primitive types in the payload.</param>
+        /// for JSON it is null since there is no payload type name for primitive types in the payload.</param>
         /// <param name="model">The model to use.</param>
         /// <param name="clientCustomTypeResolver">Custom type resolver used by client, or null if none.</param>
         /// <param name="enablePrimitiveTypeConversion">Whether primitive type conversion is enabled.</param>
@@ -541,11 +540,7 @@ namespace Microsoft.OData
         {
             Debug.Assert(encoding != null, "encoding != null");
 
-#if !ORCAS
             if (string.CompareOrdinal(Encoding.UTF8.WebName, encoding.WebName) != 0)
-#else
-            if (!encoding.IsSingleByte && Encoding.UTF8.CodePage != encoding.CodePage)
-#endif
             {
                 // TODO: Batch reader does not support multi codepoint encodings
                 // We decided to not support multi-byte encodings other than UTF8 for now.
@@ -561,11 +556,7 @@ namespace Microsoft.OData
         {
             Debug.Assert(encoding != null, "encoding != null");
 
-#if !ORCAS
             if (string.CompareOrdinal(Encoding.UTF8.WebName, encoding.WebName) != 0)
-#else
-            if (!encoding.IsSingleByte && Encoding.UTF8.CodePage != encoding.CodePage)
-#endif
             {
                 // We decided to not support multi-byte encodings other than UTF8 for now.
                 throw new ODataException(Strings.ODataAsyncReader_MultiByteEncodingsNotSupported(encoding.WebName));
@@ -579,7 +570,7 @@ namespace Microsoft.OData
         /// <param name="contextUriParseResult">The parse result of the context URI from the payload.</param>
         /// <param name="scope">The top-level scope representing the reader state.</param>
         /// <param name="updateScope">Whether to update scope when validating.</param>
-        internal static void ValidateResourceSetOrResourceContextUri(ODataJsonLightContextUriParseResult contextUriParseResult, ODataReaderCore.Scope scope, bool updateScope)
+        internal static void ValidateResourceSetOrResourceContextUri(ODataJsonContextUriParseResult contextUriParseResult, ODataReaderCore.Scope scope, bool updateScope)
         {
             if (contextUriParseResult.EdmType is IEdmCollectionType)
             {
@@ -645,7 +636,7 @@ namespace Microsoft.OData
         /// <param name="expectedItemTypeReference">The expected item type of the collection items.</param>
         /// <returns>The actual item type of the collection items.</returns>
         internal static IEdmTypeReference ValidateCollectionContextUriAndGetPayloadItemTypeReference(
-            ODataJsonLightContextUriParseResult contextUriParseResult,
+            ODataJsonContextUriParseResult contextUriParseResult,
             IEdmTypeReference expectedItemTypeReference)
         {
             if (contextUriParseResult == null || contextUriParseResult.EdmType == null)
@@ -820,8 +811,11 @@ namespace Microsoft.OData
                 case EdmTypeKind.Complex:
                     if (payloadType != null)
                     {
-                        // The payload type must be compatible to the expected type.
-                        VerifyComplexType(expectedTypeReference, payloadType, /* failIfNotRelated */ true);
+                        if (!expectedTypeReference.IsUntyped())
+                        {
+                            // The payload type must be compatible to the expected type.
+                            VerifyComplexType(expectedTypeReference, payloadType, failIfNotRelated: true);
+                        }
 
                         // Use the payload type
                         return payloadType.ToTypeReference(/*nullable*/ true);
@@ -844,7 +838,7 @@ namespace Microsoft.OData
 
                     break;
                 case EdmTypeKind.Enum:
-                    if (payloadType != null && string.CompareOrdinal(payloadType.FullTypeName(), expectedTypeReference.FullName()) != 0)
+                    if (!expectedTypeReference.IsUntyped() && payloadType != null && string.CompareOrdinal(payloadType.FullTypeName(), expectedTypeReference.FullName()) != 0)
                     {
                         throw new ODataException(Strings.ValidationUtils_IncompatibleType(payloadType.FullTypeName(), expectedTypeReference.FullName()));
                     }
@@ -853,7 +847,7 @@ namespace Microsoft.OData
                 case EdmTypeKind.Collection:
                     // The type must be exactly equal - note that we intentionally ignore nullability of the items here, since the payload type
                     // can't specify that.
-                    if (payloadType != null && !payloadType.IsElementTypeEquivalentTo(expectedTypeReference.Definition))
+                    if (!expectedTypeReference.IsUntyped() && payloadType != null && !payloadType.IsElementTypeEquivalentTo(expectedTypeReference.Definition))
                     {
                         VerifyCollectionComplexItemType(expectedTypeReference, payloadType);
 
@@ -1196,7 +1190,7 @@ namespace Microsoft.OData
         /// <param name="updateScope">
         /// The update scope.
         /// </param>
-        private static void ValidateResourceSetContextUri(ODataJsonLightContextUriParseResult contextUriParseResult, ODataReaderCore.Scope scope, bool updateScope)
+        private static void ValidateResourceSetContextUri(ODataJsonContextUriParseResult contextUriParseResult, ODataReaderCore.Scope scope, bool updateScope)
         {
             // TODO: add validation logic for a resource set context uri
         }

@@ -4,7 +4,6 @@
 // </copyright>
 //---------------------------------------------------------------------
 
-#if NETSTANDARD2_0
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -1544,7 +1543,7 @@ namespace Microsoft.OData.Edm.Csdl.Parsing
         private static string SeperateAnnotationName(string name, out string termName)
         {
             termName = null;
-            int index = name.IndexOf('@');
+            int index = name.IndexOf('@', StringComparison.Ordinal);
 
             if (index == -1)
             {
@@ -1563,4 +1562,3 @@ namespace Microsoft.OData.Edm.Csdl.Parsing
         }
     }
 }
-#endif

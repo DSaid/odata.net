@@ -1,4 +1,4 @@
-﻿//---------------------------------------------------------------------
+//---------------------------------------------------------------------
 // <copyright file="ODataTypeInfo.cs" company="Microsoft">
 //      Copyright (C) Microsoft Corporation. All rights reserved. See License.txt in the project root for license information.
 // </copyright>
@@ -15,7 +15,7 @@ namespace Microsoft.OData.Client.Metadata
     using System.Diagnostics;
     using System.Linq;
     using System.Reflection;
-    using c = Microsoft.OData.Client;
+    using Client = Microsoft.OData.Client;
 
     #endregion Namespaces.
 
@@ -46,7 +46,7 @@ namespace Microsoft.OData.Client.Metadata
         public ODataTypeInfo(Type type)
         {
             this.type = type;
-            ServerSideNameDict = new ConcurrentDictionary<string, string>();                      
+            ServerSideNameDict = new ConcurrentDictionary<string, string>();
         }
 
         /// <summary>
@@ -84,8 +84,8 @@ namespace Microsoft.OData.Client.Metadata
         /// <summary>
         /// Sertver defined type name
         /// </summary>
-        public string ServerDefinedTypeName 
-        { 
+        public string ServerDefinedTypeName
+        {
             get
             {
                 if (_serverDefinedTypeName == null)
@@ -102,7 +102,7 @@ namespace Microsoft.OData.Client.Metadata
                     else
                     {
                         _serverDefinedTypeName = type.Name;
-                    }                    
+                    }
                 }
 
                 return _serverDefinedTypeName;
@@ -170,7 +170,7 @@ namespace Microsoft.OData.Client.Metadata
 
                 if (memberInfo == null)
                 {
-                    throw c.Error.InvalidOperation(c.Strings.ClientType_MissingProperty(type.ToString(), serverSideName));
+                    throw Client.Error.InvalidOperation(Client.Strings.ClientType_MissingProperty(type.ToString(), serverSideName));
                 }
 
                 memberInfoName = memberInfo.Name;
@@ -197,7 +197,7 @@ namespace Microsoft.OData.Client.Metadata
 
             if ((!_propertyInfoDict.TryGetValue(serverDefinedName, out clientPropertyInfo)) && undeclaredPropertyBehavior == UndeclaredPropertyBehavior.ThrowException)
             {
-                throw c.Error.InvalidOperation(c.Strings.ClientType_MissingProperty(type.ToString(), serverDefinedName));
+                throw Client.Error.InvalidOperation(Client.Strings.ClientType_MissingProperty(type.ToString(), serverDefinedName));
             }
 
             return clientPropertyInfo;
@@ -251,9 +251,9 @@ namespace Microsoft.OData.Client.Metadata
                     (typeof(UIntPtr) == propertyType))
                 {
                     continue;
-                }                    
+                }
 
-                Debug.Assert(!propertyType.ContainsGenericParameters(), "remove when test case is found that encounters this");                
+                Debug.Assert(!propertyType.ContainsGenericParameters(), "remove when test case is found that encounters this");
 
                 if (propertyInfo.CanRead &&
                     (!propertyType.IsValueType() || propertyInfo.CanWrite) &&
@@ -271,35 +271,42 @@ namespace Microsoft.OData.Client.Metadata
         }
 
         private PropertyInfo[] GetKeyProperties()
-        {           
+        {
             if (CommonUtil.IsUnsupportedType(type))
             {
-                throw new InvalidOperationException(c.Strings.ClientType_UnsupportedType(type));
+                throw new InvalidOperationException(Client.Strings.ClientType_UnsupportedType(type));
             }
 
             string typeName = type.ToString();
             IEnumerable<object> customAttributes = type.GetCustomAttributes(true);
             bool isEntity = customAttributes.OfType<EntityTypeAttribute>().Any();
             KeyAttribute dataServiceKeyAttribute = customAttributes.OfType<KeyAttribute>().FirstOrDefault();
-            List<PropertyInfo> keyProperties = new List<PropertyInfo>();
-            
+
+            List<KeyValuePair<PropertyInfo, int>> keyWithOrders = new List<KeyValuePair<PropertyInfo, int>>();
+
             KeyKind currentKeyKind = KeyKind.NotKey;
             KeyKind newKeyKind = KeyKind.NotKey;
             foreach (PropertyInfo propertyInfo in Properties)
             {
-                if ((newKeyKind = IsKeyProperty(propertyInfo, dataServiceKeyAttribute)) != KeyKind.NotKey)
+                if ((newKeyKind = IsKeyProperty(propertyInfo, dataServiceKeyAttribute, out int order)) != KeyKind.NotKey)
                 {
                     if (newKeyKind > currentKeyKind)
                     {
-                        keyProperties.Clear();
+                        keyWithOrders.Clear();
                         currentKeyKind = newKeyKind;
-                        keyProperties.Add(propertyInfo);
+                        InserKeyBasedOnOrder(keyWithOrders, propertyInfo, order);
                     }
                     else if (newKeyKind == currentKeyKind)
                     {
-                        keyProperties.Add(propertyInfo);
+                        InserKeyBasedOnOrder(keyWithOrders, propertyInfo, order);
                     }
                 }
+            }
+
+            List<PropertyInfo> keyProperties = new List<PropertyInfo>();
+            foreach (var item in keyWithOrders)
+            {
+                keyProperties.Add(item.Key);
             }
 
             Type keyPropertyDeclaringType = null;
@@ -311,12 +318,14 @@ namespace Microsoft.OData.Client.Metadata
                 }
                 else if (keyPropertyDeclaringType != key.DeclaringType)
                 {
-                    throw c.Error.InvalidOperation(c.Strings.ClientType_KeysOnDifferentDeclaredType(typeName));
+                    throw Client.Error.InvalidOperation(Client.Strings.ClientType_KeysOnDifferentDeclaredType(typeName));
                 }
 
-                if (!PrimitiveType.IsKnownType(key.PropertyType) && !(key.PropertyType.GetGenericTypeDefinition() == typeof(System.Nullable<>) && key.PropertyType.GetGenericArguments().First().IsEnum()))
+                // Check if the key property's type is a known primitive, an enum, or a nullable generic.
+                // If it doesn't meet any of these conditions, throw an InvalidOperationException.
+                if (!PrimitiveType.IsKnownType(key.PropertyType) && !key.PropertyType.IsEnum() && !(key.PropertyType.IsGenericType() && key.PropertyType.GetGenericTypeDefinition() == typeof(System.Nullable<>) && key.PropertyType.GetGenericArguments().First().IsEnum()))
                 {
-                    throw c.Error.InvalidOperation(c.Strings.ClientType_KeysMustBeSimpleTypes(key.Name, typeName, key.PropertyType.FullName));
+                    throw Client.Error.InvalidOperation(Client.Strings.ClientType_KeysMustBeSimpleTypes(key.Name, typeName, key.PropertyType.FullName));
                 }
             }
 
@@ -325,15 +334,42 @@ namespace Microsoft.OData.Client.Metadata
                 if (newKeyKind == KeyKind.AttributedKey && keyProperties.Count != dataServiceKeyAttribute?.KeyNames.Count)
                 {
                     var m = (from string a in dataServiceKeyAttribute.KeyNames
-                                where (from b in Properties
+                             where (from b in Properties
                                     where b.Name == a
                                     select b).FirstOrDefault() == null
-                                select a).First<string>();
-                    throw c.Error.InvalidOperation(c.Strings.ClientType_MissingProperty(typeName, m));
+                             select a).First<string>();
+                    throw Client.Error.InvalidOperation(Client.Strings.ClientType_MissingProperty(typeName, m));
                 }
             }
 
             return keyProperties.Count > 0 ? keyProperties.ToArray() : (isEntity ? ClientTypeUtil.EmptyPropertyInfoArray : null);
+        }
+
+        private static void InserKeyBasedOnOrder(List<KeyValuePair<PropertyInfo, int>> keys, PropertyInfo keyPi, int order)
+        {
+            var newKeyWithOrder = new KeyValuePair<PropertyInfo, int>(keyPi, order);
+            if (order < 0)
+            {
+                // order < 0 means there's no order value setting, append this key at the end of list.
+                keys.Add(newKeyWithOrder);
+            }
+            else
+            {
+                int index = 0;
+                foreach (var key in keys)
+                {
+                    if (key.Value < 0 || key.Value > order)
+                    {
+                        // Insert the new key before the first negative order or first order bigger than new order.
+                        // If the new order value is same as one item in the list , move to next.
+                        break;
+                    }
+
+                    ++index;
+                }
+
+                keys.Insert(index, newKeyWithOrder);
+            }
         }
 
         /// <summary>
@@ -342,25 +378,34 @@ namespace Microsoft.OData.Client.Metadata
         /// <param name="propertyInfo">Property in question.</param>
         /// <param name="dataServiceKeyAttribute">DataServiceKeyAttribute instance.</param>
         /// <returns>Returns the KeyKind if <paramref name="propertyInfo"/> is declared as a key in <paramref name="dataServiceKeyAttribute"/> or it follows the key naming convention.</returns>
-        private static KeyKind IsKeyProperty(PropertyInfo propertyInfo, KeyAttribute dataServiceKeyAttribute)
+        private static KeyKind IsKeyProperty(PropertyInfo propertyInfo, KeyAttribute dataServiceKeyAttribute, out int order)
         {
             Debug.Assert(propertyInfo != null, "propertyInfo != null");
+            order = -1;
+
+            //If the property's declaring type is anonymous, it is not a key.
+            if (propertyInfo.IsAnonymousProperty())
+            {
+                return KeyKind.NotKey;
+            }
 
             string propertyName = ClientTypeUtil.GetServerDefinedName(propertyInfo);
 
             KeyKind keyKind = KeyKind.NotKey;
             if (dataServiceKeyAttribute != null && dataServiceKeyAttribute.KeyNames.Contains(propertyName))
             {
+                order = dataServiceKeyAttribute.KeyNames.IndexOf(propertyName);
                 keyKind = KeyKind.AttributedKey;
             }
-            else if (propertyInfo.GetCustomAttributes().OfType<System.ComponentModel.DataAnnotations.KeyAttribute>().Any())
+            else if (IsDataAnnotationsKeyProperty(propertyInfo, out KeyKind newKind, out int newOrder))
             {
-                keyKind = KeyKind.AttributedKey;
+                order = newOrder;
+                keyKind = newKind;
             }
-            else if (propertyName.EndsWith("ID", StringComparison.Ordinal))
+            else if (propertyName.Equals(propertyInfo.DeclaringType.Name + "Id", StringComparison.OrdinalIgnoreCase) || propertyName.Equals("Id", StringComparison.OrdinalIgnoreCase))
             {
                 string declaringTypeName = propertyInfo.DeclaringType.Name;
-                if ((propertyName.Length == (declaringTypeName.Length + 2)) && propertyName.StartsWith(declaringTypeName, StringComparison.Ordinal))
+                if ((propertyName.Length == (declaringTypeName.Length + 2)) && propertyName.StartsWith(declaringTypeName, StringComparison.OrdinalIgnoreCase))
                 {
                     // matched "DeclaringType.Name+ID" pattern
                     keyKind = KeyKind.TypeNameId;
@@ -373,6 +418,27 @@ namespace Microsoft.OData.Client.Metadata
             }
 
             return keyKind;
+        }
+
+        private static bool IsDataAnnotationsKeyProperty(PropertyInfo propertyInfo, out KeyKind kind, out int order)
+        {
+            order = -1;
+            kind = KeyKind.NotKey;
+            var attributes = propertyInfo.GetCustomAttributes();
+            if (!attributes.Any(a => a is System.ComponentModel.DataAnnotations.KeyAttribute))
+            {
+                return false;
+            }
+
+            var columnAttribute = attributes.OfType<System.ComponentModel.DataAnnotations.Schema.ColumnAttribute>().FirstOrDefault();
+            if (columnAttribute != null)
+            {
+                order = columnAttribute.Order;
+            }
+
+            kind = KeyKind.AttributedKey;
+
+            return true;
         }
     }
 }

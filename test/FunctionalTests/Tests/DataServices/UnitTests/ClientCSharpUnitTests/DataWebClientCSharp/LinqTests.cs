@@ -7404,6 +7404,19 @@ namespace AstoriaUnitTests.Tests
 
             RunTest(baseline, query);
 
+			//matchesPattern
+            query = from t in context.CreateQuery<Team>("Teams")
+                    where Regex.IsMatch(t.TeamName, "^W")
+                    orderby Regex.IsMatch(t.TeamName, "^W")
+                    select t;
+
+            baseline = from t in baseLineContext.Teams
+                    where Regex.IsMatch(t.TeamName, "^W")
+                    orderby Regex.IsMatch(t.TeamName, "^W")
+                    select t;
+
+            RunTest(baseline, query);
+
             //endswith
             query = from t in context.CreateQuery<Team>("Teams")
                     where t.TeamName.EndsWith("s")
@@ -8044,9 +8057,26 @@ namespace AstoriaUnitTests.Tests
                 }
             }
 
+            {
+                var queryableUnsupportedApply = ((DataServiceQuery<League>)from l in context.CreateQuery<League>("Leagues")
+                                                                           select l)
+                                                            .AddQueryOption("$apply", 1);
+                try
+                {
+                    queryableUnsupportedApply.GetEnumerator();
+                }
+                catch (Exception e)
+                {
+                    if (!e.InnerException.Message.Contains($"The query parameter '$apply' begins with a system-reserved '$' character but is not recognized."))
+                    {
+                        throw new Exception("Test Failed");
+                    }
+                }
+            }
+
             Trace.WriteLine("known, but unsupported query  options");
 
-            foreach (var option in new string[] { "$apply", "$skiptoken", "$delta"})
+            foreach (var option in new string[] { "$skiptoken", "$delta"})
             {
                 var queryableUnsupportedOption = ((DataServiceQuery<League>)from l in context.CreateQuery<League>("Leagues")
                                                                             select l)
@@ -8389,7 +8419,6 @@ namespace AstoriaUnitTests.Tests
                 //ctx.EnableAtom = true;
                 //ctx.Format.UseAtom();
                 ctx.MergeOption = Microsoft.OData.Client.MergeOption.NoTracking;
-                ctx.Credentials = System.Net.CredentialCache.DefaultCredentials;
 
                 //Queries without a projection
                 //LondonCustomers using DataServiceContext.CreateQuery()

@@ -20,7 +20,7 @@ using ErrorStrings = Microsoft.OData.Edm.Strings;
 
 namespace Microsoft.OData.Edm.Tests.Csdl
 {
-    public class CsdlReaderTests
+    public partial class CsdlReaderTests
     {
         private const string ValidEdmx = @"<edmx:Edmx Version=""4.0"" xmlns:edmx=""http://docs.oasis-open.org/odata/ns/edmx"">
   <edmx:DataServices>
@@ -153,7 +153,62 @@ namespace Microsoft.OData.Edm.Tests.Csdl
         }
 
         [Fact]
-        public void ValidateNavigationPropertyBindingPathTypeCast()
+        public void ReadNavigationPropertyPartnerOnlyOnOneSideTest()
+        {
+            var csdl =
+                "<?xml version=\"1.0\" encoding=\"utf-16\"?>" +
+                    "<edmx:Edmx Version=\"4.0\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
+                        "<edmx:DataServices>" +
+                            "<Schema Namespace=\"NS\" xmlns=\"http://docs.oasis-open.org/odata/ns/edm\">" +
+                                "<EntityType Name=\"Product\">" +
+                                    "<Key><PropertyRef Name=\"ID\" /></Key>" +
+                                    "<Property Name=\"ID\" Type=\"Edm.Int32\" />" +
+                                    "<NavigationProperty Name=\"Category\" Type=\"NS.Category\" Nullable=\"false\" Partner=\"Products\" />" +
+                                "</EntityType>" +
+                                "<EntityType Name=\"Category\">" +
+                                    "<Key><PropertyRef Name=\"ID\" /></Key>" +
+                                    "<Property Name=\"ID\" Type=\"Edm.Int32\" />" +
+                                    "<NavigationProperty Name=\"Products\" Type=\"Collection(NS.Product)\" Nullable=\"false\" />" +
+                                "</EntityType>" +
+                            "</Schema>" +
+                        "</edmx:DataServices>" +
+                    "</edmx:Edmx>";
+            var model = CsdlReader.Parse(XElement.Parse(csdl).CreateReader());
+            var product = (IEdmEntityType)model.FindDeclaredType("NS.Product");
+            var category = (IEdmEntityType)model.FindDeclaredType("NS.Category");
+            IEdmNavigationProperty categoryNavigationProperty = (IEdmNavigationProperty)product.FindProperty("Category");
+            IEdmNavigationProperty productsNavigationProperty = (IEdmNavigationProperty)category.FindProperty("Products");
+
+            Assert.Equal("Products", categoryNavigationProperty.GetPartnerPath().Path);
+            Assert.Null(productsNavigationProperty.GetPartnerPath());
+
+            Assert.Same(productsNavigationProperty, categoryNavigationProperty.Partner);
+            Assert.Same(categoryNavigationProperty, productsNavigationProperty.Partner);
+        }
+
+        [Fact]
+        public void ReadNavigationPropertyPartnerFromBigCsdlTestNoExceptionThrows()
+        {
+            var model = CsdlReader.Parse(XElement.Parse(BigCsdl).CreateReader());
+
+            Action test = () =>
+            {
+                foreach (var entityType in model.SchemaElements.OfType<IEdmEntityType>())
+                {
+                    foreach (var nav in entityType.NavigationProperties())
+                    {
+                        IEdmNavigationProperty partner = nav.Partner;
+                        Assert.Null(partner);
+                    }
+                }
+            };
+
+            var exception = Record.Exception(test);
+            Assert.Null(exception);
+        }
+
+        [Fact]
+        public void ValidateNavigationPropertyBindingPathInvalidTypeCast()
         {
             var csdl
                 = "<?xml version=\"1.0\" encoding=\"utf-16\"?>" +
@@ -185,6 +240,108 @@ namespace Microsoft.OData.Edm.Tests.Csdl
             var model = CsdlReader.Parse(XElement.Parse(csdl).CreateReader());
             var set1 = model.FindDeclaredNavigationSource("Set1");
             Assert.True(set1.NavigationPropertyBindings.First().NavigationProperty is UnresolvedNavigationPropertyPath);
+        }
+
+        [Fact]
+        public void ValidateNavigationPropertyBindingPathTypeCast()
+        {
+            var csdl
+                = "<?xml version=\"1.0\" encoding=\"utf-16\"?>" +
+                    "<edmx:Edmx Version=\"4.0\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
+                      "<edmx:DataServices>" +
+                        "<Schema Namespace=\"NS\" xmlns=\"http://docs.oasis-open.org/odata/ns/edm\">" +
+                          "<EntityType Name=\"EntityA\">" +
+                            "<Key><PropertyRef Name=\"ID\" /></Key>" +
+                              "<Property Name=\"ID\" Type=\"Edm.Int32\" Nullable=\"false\" />" +
+                              "<Property Name=\"Complex\" Type=\"NS.Complex\" Nullable=\"false\" />" +
+                            "</EntityType>" +
+                          "<ComplexType Name=\"Complex\" />" +
+                          "<ComplexType Name=\"ComplexB\" BaseType=\"NS.Complex\">" +
+                            "<NavigationProperty Name=\"ComplexBNav\" Type=\"NS.EntityB\" Nullable=\"false\" />" +
+                          "</ComplexType>" +
+                          "<EntityContainer Name=\"Container\">" +
+                            "<EntitySet Name=\"Set1\" EntityType=\"NS.EntityA\">" +
+                              "<NavigationPropertyBinding Path=\"Complex/NS.ComplexB/ComplexBNav\" Target=\"Set2\" />" +
+                            "</EntitySet>" +
+                          "</EntityContainer>" +
+                        "</Schema>" +
+                      "</edmx:DataServices>" +
+                    "</edmx:Edmx>";
+            var model = CsdlReader.Parse(XElement.Parse(csdl).CreateReader());
+            var set1 = model.FindDeclaredNavigationSource("Set1");
+            var navProp = (model.FindType("NS.ComplexB") as IEdmStructuredType).FindProperty("ComplexBNav");
+            Assert.Equal(navProp, set1.NavigationPropertyBindings.First().NavigationProperty);
+        }
+
+        [InlineData("4.0")]
+        [InlineData("4.01")]
+        [Theory]
+        public void ValidateNavigationPropertyBindingPathEndingInTypeCast(string odataVersion)
+        {
+            var entitySetWithNavProperties =
+                            "<EntitySet Name=\"SetA\" EntityType=\"NS.EntityA\">" +
+                              "<NavigationPropertyBinding Path=\"Nav/NS.EntityX1\" Target=\"SetX1\" />" +
+                              "<NavigationPropertyBinding Path=\"Nav/NS.EntityX2\" Target=\"SetX2\" />" +
+                            "</EntitySet>";
+            var entitySetWithoutNavProperties =
+                            "<EntitySet Name=\"SetA\" EntityType=\"NS.EntityA\" />";
+            var csdl = 
+                  "<edmx:Edmx Version=\"{0}\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
+                      "<edmx:DataServices>" +
+                        "<Schema Namespace=\"NS\" xmlns=\"http://docs.oasis-open.org/odata/ns/edm\">" +
+                          "<EntityType Name=\"EntityA\">" +
+                            "<Key><PropertyRef Name=\"ID\" /></Key>" +
+                              "<Property Name=\"ID\" Type=\"Edm.Int32\" Nullable=\"false\" />" +
+                              "<NavigationProperty Name=\"Nav\" Type=\"NS.EntityX\" Nullable=\"false\" />" +
+                            "</EntityType>" +
+                          "<EntityType Name=\"EntityX\" Abstract=\"true\">" +
+                            "<Key><PropertyRef Name=\"ID\" /></Key>" +
+                            "<Property Name=\"ID\" Type=\"Edm.Int32\" Nullable=\"false\" />" +
+                          "</EntityType>" +
+                          "<EntityType Name=\"EntityX1\" BaseType=\"NS.EntityX\" />" +
+                          "<EntityType Name=\"EntityX2\" BaseType=\"NS.EntityX\" />" +
+                          "<EntityContainer Name=\"Container\">" +
+                          "{1}" +
+                            "<EntitySet Name=\"SetX1\" EntityType=\"NS.EntityX1\" />" +
+                            "<EntitySet Name=\"SetX2\" EntityType=\"NS.EntityX2\" />" +
+                          "</EntityContainer>" +
+                        "</Schema>" +
+                      "</edmx:DataServices>" +
+                    "</edmx:Edmx>";
+
+            var model = CsdlReader.Parse(XElement.Parse(String.Format(csdl, odataVersion, entitySetWithNavProperties)).CreateReader());
+            IEnumerable<EdmError> errors;
+            Assert.True(model.Validate(out errors));
+            Assert.Empty(errors);
+
+            var setA = model.FindDeclaredNavigationSource("SetA");
+            Assert.NotNull(setA);
+
+            var navProp = setA.EntityType.FindProperty("Nav") as IEdmNavigationProperty;
+            Assert.NotNull(navProp);
+            Assert.Equal(2, setA.NavigationPropertyBindings.Count());
+
+            // NavPropBinding for for EntityX1 should be SetX1
+            var X1NavPropBinding = setA.NavigationPropertyBindings.FirstOrDefault(b => b.Path.PathSegments.Last() == "NS.EntityX1");
+            Assert.NotNull(X1NavPropBinding);
+            var setX1 = model.FindDeclaredNavigationSource("SetX1");
+            Assert.Same(setX1, X1NavPropBinding.Target);
+            Assert.Same(setX1, setA.FindNavigationTarget(navProp, new EdmPathExpression("Nav/NS.EntityX1")));
+
+            // NavPropBinding for EntityX2 should be SetX2
+            var X2NavPropBinding = setA.NavigationPropertyBindings.FirstOrDefault(b => b.Path.PathSegments.Last() == "NS.EntityX2");
+            Assert.NotNull(X2NavPropBinding);
+            var setX2 = model.FindDeclaredNavigationSource("SetX2");
+            Assert.Same(setX2, X2NavPropBinding.Target);
+            Assert.Same(setX2, setA.FindNavigationTarget(navProp, new EdmPathExpression("Nav/NS.EntityX2")));
+
+            // Navigation Property without path should return UnknownEntitySet
+            Assert.True(setA.FindNavigationTarget(navProp) is EdmUnknownEntitySet);
+
+            // Verify writing model
+            model.SetEdmVersion(Version.Parse(odataVersion));
+            VerifyXmlModel(model, odataVersion == "4.0" ? entitySetWithoutNavProperties : entitySetWithNavProperties);
+
         }
 
         [Fact]
@@ -565,6 +722,11 @@ namespace Microsoft.OData.Edm.Tests.Csdl
         [Fact]
         public void ReadAnnotationWithoutSpecifiedValueAndUsePrimitiveDefaultValues()
         {
+            CsdlXmlWriterSettings writerSettings = new CsdlXmlWriterSettings
+            {
+                LibraryCompatibility = EdmLibraryCompatibility.UseLegacyVariableCasing
+            };
+
             var csdl = "<?xml version=\"1.0\" encoding=\"utf-16\"?>" +
              "<edmx:Edmx Version=\"4.0\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
                "<edmx:DataServices>" +
@@ -585,7 +747,7 @@ namespace Microsoft.OData.Edm.Tests.Csdl
                      "<Annotation Term=\"NS.DefaultDateTerm\" />" +
                    "</ComplexType>" +
                  "<Term Name=\"DefaultBinaryTerm\" Type=\"Edm.Binary\" DefaultValue=\"01\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
-                 "<Term Name=\"DefaultDecimalTerm\" Type=\"Edm.Decimal\" DefaultValue=\"0.34\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
+                 "<Term Name=\"DefaultDecimalTerm\" Type=\"Edm.Decimal\" DefaultValue=\"0.34\" AppliesTo=\"Property Term\" Nullable=\"false\" Scale=\"Variable\" />" +
                  "<Term Name=\"DefaultStringTerm\" Type=\"Edm.String\" DefaultValue=\"This is a test\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
                  "<Term Name=\"DefaultDurationTerm\" Type=\"Edm.Duration\" DefaultValue=\"P11DT23H59M59.999999999999S\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
                  "<Term Name=\"DefaultTODTerm\" Type=\"Edm.TimeOfDay\" DefaultValue=\"21:45:00\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
@@ -640,7 +802,7 @@ namespace Microsoft.OData.Edm.Tests.Csdl
                      "<Annotation Term=\"NS.DefaultDateTerm\" />" +
                    "</ComplexType>" +
                  "<Term Name=\"DefaultBinaryTerm\" Type=\"Edm.Binary\" DefaultValue=\"01\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
-                 "<Term Name=\"DefaultDecimalTerm\" Type=\"Edm.Decimal\" DefaultValue=\"0.34\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
+                 "<Term Name=\"DefaultDecimalTerm\" Type=\"Edm.Decimal\" DefaultValue=\"0.34\" AppliesTo=\"Property Term\" Nullable=\"false\" Scale=\"Variable\" />" +
                  "<Term Name=\"DefaultStringTerm\" Type=\"Edm.String\" DefaultValue=\"This is a test\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
                  "<Term Name=\"DefaultDurationTerm\" Type=\"Edm.Duration\" DefaultValue=\"P11DT23H59M59.999999999999S\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
                  "<Term Name=\"DefaultTODTerm\" Type=\"Edm.TimeOfDay\" DefaultValue=\"21:45:00\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
@@ -654,7 +816,7 @@ namespace Microsoft.OData.Edm.Tests.Csdl
                  "<Term Name=\"DefaultDateTerm\" Type=\"Edm.Date\" DefaultValue=\"2000-12-10\" AppliesTo=\"Property Term\" Nullable=\"false\" />" +
                  "</Schema>" +
                "</edmx:DataServices>" +
-             "</edmx:Edmx>");
+             "</edmx:Edmx>", writerSettings);
         }
 
         [Fact]
@@ -972,6 +1134,122 @@ namespace Microsoft.OData.Edm.Tests.Csdl
             Assert.NotNull(property);
             Assert.False(property.Type.IsNullable);
             Assert.Same(EdmCoreModel.Instance.GetPrimitiveType(), property.Type.Definition);
+        }
+
+        [Fact]
+        public void ParsingPropertyWithDecimalTypeWorks()
+        {
+            string decimalProperty =
+                @"<Property Name=""DecimalProperty"" Type=""Edm.Decimal"" Precision=""6"" Scale=""2"" Nullable=""false"" />";
+
+            IEdmModel model = GetEdmModel(properties: decimalProperty);
+            IEnumerable<EdmError> errors;
+            Assert.True(model.Validate(out errors));
+
+            var customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "Customer");
+            Assert.NotNull(customer);
+            var property = customer.DeclaredProperties.FirstOrDefault(c => c.Name == "DecimalProperty");
+            Assert.NotNull(property);
+            Assert.False(property.Type.IsNullable);
+            Assert.Same(EdmCoreModel.Instance.GetDecimal(false).Definition, property.Type.Definition);
+            Assert.Equal(6, property.Type.AsDecimal().Precision);
+            Assert.Equal(2, property.Type.AsDecimal().Scale);
+
+            var address = model.SchemaElements.OfType<IEdmComplexType>().FirstOrDefault(c => c.Name == "Address");
+            Assert.NotNull(address);
+            property = address.DeclaredProperties.FirstOrDefault(c => c.Name == "DecimalProperty");
+            Assert.NotNull(property);
+            Assert.False(property.Type.IsNullable);
+            Assert.Same(EdmCoreModel.Instance.GetDecimal(false).Definition, property.Type.Definition);
+            Assert.Equal(6, property.Type.AsDecimal().Precision);
+            Assert.Equal(2, property.Type.AsDecimal().Scale);
+        }
+
+        [Fact]
+        public void ParsingPropertyWithZeroScaleDecimalTypeWorks()
+        {
+            string decimalProperty =
+                @"<Property Name=""DecimalProperty"" Type=""Edm.Decimal"" Precision=""6"" Scale=""0"" Nullable=""false"" />";
+
+            IEdmModel model = GetEdmModel(properties: decimalProperty);
+            IEnumerable<EdmError> errors;
+            Assert.True(model.Validate(out errors));
+
+            var customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "Customer");
+            Assert.NotNull(customer);
+            var property = customer.DeclaredProperties.FirstOrDefault(c => c.Name == "DecimalProperty");
+            Assert.NotNull(property);
+            Assert.False(property.Type.IsNullable);
+            Assert.Same(EdmCoreModel.Instance.GetDecimal(false).Definition, property.Type.Definition);
+            Assert.Equal(6, property.Type.AsDecimal().Precision);
+            Assert.Equal(0, property.Type.AsDecimal().Scale);
+
+            var address = model.SchemaElements.OfType<IEdmComplexType>().FirstOrDefault(c => c.Name == "Address");
+            Assert.NotNull(address);
+            property = address.DeclaredProperties.FirstOrDefault(c => c.Name == "DecimalProperty");
+            Assert.NotNull(property);
+            Assert.False(property.Type.IsNullable);
+            Assert.Same(EdmCoreModel.Instance.GetDecimal(false).Definition, property.Type.Definition);
+            Assert.Equal(6, property.Type.AsDecimal().Precision);
+            Assert.Equal(0, property.Type.AsDecimal().Scale);
+        }
+
+        [Fact]
+        public void ParsingPropertyWithDecimalTypeDefaultsToNullScale()
+        {
+            string decimalProperty =
+                @"<Property Name=""DecimalProperty"" Type=""Edm.Decimal"" Precision=""6"" Nullable=""false"" />";
+
+            IEdmModel model = GetEdmModel(properties: decimalProperty);
+            IEnumerable<EdmError> errors;
+            Assert.True(model.Validate(out errors));
+
+            var customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "Customer");
+            Assert.NotNull(customer);
+            var property = customer.DeclaredProperties.FirstOrDefault(c => c.Name == "DecimalProperty");
+            Assert.NotNull(property);
+            Assert.False(property.Type.IsNullable);
+            Assert.Same(EdmCoreModel.Instance.GetDecimal(false).Definition, property.Type.Definition);
+            Assert.Equal(6, property.Type.AsDecimal().Precision);
+            Assert.Null(property.Type.AsDecimal().Scale);
+
+            var address = model.SchemaElements.OfType<IEdmComplexType>().FirstOrDefault(c => c.Name == "Address");
+            Assert.NotNull(address);
+            property = address.DeclaredProperties.FirstOrDefault(c => c.Name == "DecimalProperty");
+            Assert.NotNull(property);
+            Assert.False(property.Type.IsNullable);
+            Assert.Same(EdmCoreModel.Instance.GetDecimal(false).Definition, property.Type.Definition);
+            Assert.Equal(6, property.Type.AsDecimal().Precision);
+            Assert.Null(property.Type.AsDecimal().Scale);
+        }
+
+        [Fact]
+        public void ParsingPropertyWithVariableScaleDecimalTypeWorks()
+        {
+            string decimalProperty =
+                @"<Property Name=""DecimalProperty"" Type=""Edm.Decimal"" Precision=""6"" Scale=""Variable"" Nullable=""false"" />";
+
+            IEdmModel model = GetEdmModel(properties: decimalProperty);
+            IEnumerable<EdmError> errors;
+            Assert.True(model.Validate(out errors));
+
+            var customer = model.SchemaElements.OfType<IEdmEntityType>().FirstOrDefault(c => c.Name == "Customer");
+            Assert.NotNull(customer);
+            var property = customer.DeclaredProperties.FirstOrDefault(c => c.Name == "DecimalProperty");
+            Assert.NotNull(property);
+            Assert.False(property.Type.IsNullable);
+            Assert.Same(EdmCoreModel.Instance.GetDecimal(false).Definition, property.Type.Definition);
+            Assert.Equal(6, property.Type.AsDecimal().Precision);
+            Assert.Null(property.Type.AsDecimal().Scale);
+
+            var address = model.SchemaElements.OfType<IEdmComplexType>().FirstOrDefault(c => c.Name == "Address");
+            Assert.NotNull(address);
+            property = address.DeclaredProperties.FirstOrDefault(c => c.Name == "DecimalProperty");
+            Assert.NotNull(property);
+            Assert.False(property.Type.IsNullable);
+            Assert.Same(EdmCoreModel.Instance.GetDecimal(false).Definition, property.Type.Definition);
+            Assert.Equal(6, property.Type.AsDecimal().Precision);
+            Assert.Null(property.Type.AsDecimal().Scale);
         }
 
         [Fact]
@@ -1941,6 +2219,256 @@ namespace Microsoft.OData.Edm.Tests.Csdl
             // this is not imported because the Other.Types namespace is not referenced by the permissionsCsdl model
             var personType = model.FindType("Other.Types.Person");
             Assert.Null(personType);
+        }
+
+        // We currently do not initialize the Scale and SpatialReferenceIdentifier of the respective Edm type references when reading the scale and srid values if the value is variable or Variable 
+        // The IEdmDecimalTypeReference'Scale value should have the value `variable` or `Variable` depending on what is in the CSDL.
+        // Also, the IEdmSpatialTypeReference's SpatialReferenceIdentifier should have the value `variable` or `Variable` depending on what is in the Csdl. 
+        [Theory]
+        [InlineData("Variable")]
+        [InlineData("variable")]
+        public void ReadingScaleAndSridValue_VaribaleValue_NotInitializedOnRespectiveEdms(string variableValue)
+        {
+            // Build the CSDL template with the provided variable value
+            string csdlTemplate = $"<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                "<edmx:Edmx Version=\"4.0\" xmlns:edmx=\"http://docs.oasis-open.org/odata/ns/edmx\">" +
+                "<edmx:DataServices>" +
+                "<Schema Namespace=\"NS\" xmlns=\"http://docs.oasis-open.org/odata/ns/edm\">" +
+                "<ComplexType Name=\"Complex\">" +
+                $"<Property Name=\"GeographyPoint\" Type=\"Edm.GeographyPoint\" SRID=\"{variableValue}\" />" +
+                $"<Property Name=\"DecimalProperty\" Type=\"Edm.Decimal\" Nullable=\"false\" Scale=\"{variableValue}\" />" +
+                "</ComplexType>" +
+                "</Schema>" +
+                "</edmx:DataServices>" +
+                "</edmx:Edmx>";
+
+            // Parse the CSDL template
+            IEdmModel model;
+            using (XmlReader xr = XElement.Parse(csdlTemplate).CreateReader())
+            {
+                model = CsdlReader.Parse(xr);
+            }
+
+            IEnumerable<EdmError> errors;
+            bool validated = model.Validate(out errors);
+            Assert.True(validated);
+
+            IEdmComplexType complexType = model.FindDeclaredType("NS.Complex") as IEdmComplexType;
+            IEdmDecimalTypeReference decimalPropertyReference = complexType.FindProperty("DecimalProperty").Type as IEdmDecimalTypeReference;
+
+            Assert.Null(decimalPropertyReference.Scale);
+
+            IEdmSpatialTypeReference geographyPointProperty = complexType.FindProperty("GeographyPoint").Type as IEdmSpatialTypeReference;
+            Assert.Null(geographyPointProperty.SpatialReferenceIdentifier);
+        }
+
+        [Fact]
+        public void ShouldReportCorrectLineNumbersWithMultiLineElements()
+        {
+            string csdl =
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+                  <edmx:DataServices>
+                    <Schema Namespace="name.space" Alias="self" xmlns="http://docs.oasis-open.org/odata/ns/edm" xmlns:ags="http://aggregator.microsoft.com/internal">
+                      <EnumType
+
+                        Name="someEnum">
+                        <Member Name="notApplicable" Value="0" />
+
+                        <Member Name="enabled" Value="1" />
+                        <Member Name="disabled" Value="2" />
+                        <Member Name="unknownFutureValue" Value="3" />
+                      </EnumType>
+
+                      <EnumType Name="otherEnum">
+                        <Member Name="success" Value="0" />
+                        <Member Name="failure" Value="1" />
+                        <Member Name="unknownFutureValue" Value="2" />
+                      </EnumType>
+                    </Schema>
+                  </edmx:DataServices>
+                </edmx:Edmx>
+                """;
+
+
+
+            using var reader = XmlReader.Create(new StringReader(csdl));
+            var model = CsdlReader.Parse(reader);
+
+            var someEnum = model.FindDeclaredType("name.space.someEnum") as IEdmEnumType;
+            AssertLineLocation(someEnum, 5, 8);
+
+            AssertLineLocation(
+                someEnum.Members.FirstOrDefault(m => m.Name == "disabled"), 11, 10);
+
+            var otherEnum = model.FindDeclaredType("name.space.otherEnum") as IEdmElement;
+            AssertLineLocation(otherEnum, 15, 8);
+        }
+
+
+        [Fact]
+        public void ShouldReportCorrectLineNumbersWithMultiLineReferenceElement()
+        {
+            string csdl =
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+                  <edmx:Reference
+                    Uri="https://docs.oasis-open.org/odata/odata-data-aggregation-ext/v4.0/cs03/vocabularies/Org.OData.Aggregation.V1.xml"
+                  >
+                    <edmx:Include
+                      Namespace="Org.OData.Aggregation.V1" Alias="Aggregation"/>
+                  </edmx:Reference>
+                  <edmx:DataServices>
+                    <Schema Namespace="name.space" Alias="self" xmlns="http://docs.oasis-open.org/odata/ns/edm" xmlns:ags="http://aggregator.microsoft.com/internal">
+                      <EnumType
+
+                        Name="someEnum">
+                        <Member Name="notApplicable" Value="0" />
+
+                        <Member Name="enabled" Value="1" />
+                        <Member Name="disabled" Value="2" />
+                        <Member Name="unknownFutureValue" Value="3" />
+                      </EnumType>
+
+                      <EnumType Name="otherEnum">
+                        <Member Name="success" Value="0" />
+                        <Member Name="failure" Value="1" />
+                        <Member Name="unknownFutureValue" Value="2" />
+                      </EnumType>
+                    </Schema>
+                  </edmx:DataServices>
+                </edmx:Edmx>
+                """;
+
+
+
+            using var reader = XmlReader.Create(new StringReader(csdl));
+            var model = CsdlReader.Parse(reader);
+
+            var reference = model.GetEdmReferences().FirstOrDefault();
+            var edmInclude = reference.Includes.FirstOrDefault(i => i.Alias == "Aggregation");
+            AssertLineLocation(edmInclude, 6, 6);
+
+            var someEnum = model.FindDeclaredType("name.space.someEnum") as IEdmEnumType;
+            AssertLineLocation(someEnum, 11, 8);
+
+            AssertLineLocation(
+                someEnum.Members.FirstOrDefault(m => m.Name == "disabled"), 17, 10);
+
+            var otherEnum = model.FindDeclaredType("name.space.otherEnum") as IEdmElement;
+            AssertLineLocation(otherEnum, 21, 8);
+        }
+
+
+        [Fact]
+        public void ShouldReportCorrectLineNumbersWithMultiLineElementsAndMultipleSchemas()
+        {
+            string csdl =
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+                  <edmx:DataServices>
+                    <Schema Namespace="ns.one" Alias="self" xmlns="http://docs.oasis-open.org/odata/ns/edm" xmlns:ags="http://aggregator.microsoft.com/internal">
+                      <EnumType
+                        Name="someEnum">
+                        <Member Name="notApplicable" Value="0" />
+                        <Member Name="enabled" Value="1" />
+                        <Member Name="disabled" Value="2" />
+                        <Member Name="unknownFutureValue" Value="3" />
+                      </EnumType>
+                      <EnumType Name="otherEnum">
+                        <Member Name="success" Value="0" />
+                        <Member Name="failure"
+                          Value="1" />
+                        <Member Name="unknownFutureValue" Value="2" />
+                      </EnumType>
+                    </Schema>
+                    <Schema Namespace="ns.two" xmlns="http://docs.oasis-open.org/odata/ns/edm"
+                      xmlns:ags="http://aggregator.microsoft.com/internal">
+                      <EntityType
+                        Name="task">
+                        <Key>
+                          <PropertyRef Name="id" />
+                        </Key>
+                        <Property Name="id" Type="Edm.String" />
+                        <Property 
+                            Name="status"
+                            Type="ns.one.someEnum" />
+                        <Property Name="title" Type="Edm.String" />
+                      </EntityType>
+                        <EntityContainer Name="defaultContainer">
+                        <EntitySet Name="tasks" EntityType="ns.two.task"/>
+                      </EntityContainer>
+                    </Schema>
+                  </edmx:DataServices>
+                </edmx:Edmx>
+                """;
+
+
+
+            using var reader = XmlReader.Create(new StringReader(csdl));
+            var model = CsdlReader.Parse(reader);
+
+            AssertLineLocation(
+                model.FindDeclaredType("ns.one.someEnum"),
+                5,
+                8);
+
+            var otherEnum = model.FindDeclaredType("ns.one.otherEnum") as IEdmEnumType;
+
+            AssertLineLocation(
+                otherEnum,
+                12,
+                8);
+
+            AssertLineLocation(
+                otherEnum.Members.FirstOrDefault(m => m.Name == "unknownFutureValue"),
+                16,
+                10);
+
+            var task = model.FindDeclaredType("ns.two.task") as IEdmEntityType;
+
+            AssertLineLocation(
+                task,
+                21,
+                8);
+
+            AssertLineLocation(
+                task.DeclaredProperties.FirstOrDefault(p => p.Name == "title"),
+                30,
+                10);
+
+            AssertLineLocation(
+                model.EntityContainer,
+                32,
+                10);
+
+            AssertLineLocation(
+                model.FindDeclaredEntitySet("defaultContainer.tasks"),
+                33,
+                10);
+        }
+
+        static void VerifyXmlModel(IEdmModel model, string csdl)
+        {
+            var stream = new MemoryStream();
+            XmlWriter xmlWriter = XmlWriter.Create(stream);
+            IEnumerable<EdmError> errors;
+            Assert.True(CsdlWriter.TryWriteCsdl(model, xmlWriter, CsdlTarget.OData, out errors));
+            Assert.Empty(errors);
+            stream.Position = 0;
+            Assert.Contains(csdl, new StreamReader(stream).ReadToEnd());
+        }
+
+        private static void AssertLineLocation(IEdmElement element, int lineNumber, int position)
+        {
+            Assert.NotNull(element);
+            var location = element.Location() as CsdlLocation;
+            Assert.NotNull(location);
+            Assert.Equal(lineNumber, location.LineNumber);
+            Assert.Equal(position, location.LinePosition);
         }
     }
 }

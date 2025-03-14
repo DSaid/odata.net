@@ -77,6 +77,8 @@ namespace Microsoft.OData.UriParser
                 this.TargetEdmType = null;
                 this.TargetKind = RequestTargetKind.VoidOperation;
             }
+
+            this.Identifier = operation.FullName();
         }
 
         /// <summary>
@@ -128,6 +130,7 @@ namespace Microsoft.OData.UriParser
             this.computedReturnEdmType = typeSoFar;
             this.entitySet = entitySet;
             this.EnsureTypeAndSetAreCompatable();
+            this.Identifier = this.operations.First().FullName();
         }
 
         /// <summary>
@@ -264,7 +267,7 @@ namespace Microsoft.OData.UriParser
             }
 
             // Ensure that the return type is in the same type hierarchy as the entity set provided
-            if (!this.entitySet.EntityType().IsOrInheritsFrom(unwrappedCollectionType) && !unwrappedCollectionType.IsOrInheritsFrom(this.entitySet.EntityType()))
+            if (!this.entitySet.EntityType.IsOrInheritsFrom(unwrappedCollectionType) && !unwrappedCollectionType.IsOrInheritsFrom(this.entitySet.EntityType))
             {
                 throw new ODataException(ODataErrorStrings.OperationSegment_CannotReturnNull);
             }

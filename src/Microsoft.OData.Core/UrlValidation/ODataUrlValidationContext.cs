@@ -18,9 +18,18 @@ namespace Microsoft.OData.UriParser.Validation
         /// <summary>
         /// List of <see cref="ODataUrlValidationMessage"/>s discovered while validating the OData Url.
         /// </summary>
-#pragma warning disable CA1002 // Do not expose generic lists
-        public List<ODataUrlValidationMessage> Messages { get; private set; }
-#pragma warning restore CA1002 // Do not expose generic lists
+        private List<ODataUrlValidationMessage> messages;
+
+        /// <summary>
+        /// List of <see cref="ODataUrlValidationMessage"/>s discovered while validating the OData Url.
+        /// </summary>
+        public IReadOnlyList<ODataUrlValidationMessage> Messages
+        {
+            get
+            {
+                return this.messages;
+            }
+        }
 
         /// <summary>
         /// The model against which the OData Url is to be validated.
@@ -55,7 +64,7 @@ namespace Microsoft.OData.UriParser.Validation
         internal ODataUrlValidationContext(IEdmModel model, ODataUrlValidator urlValidator)
         {
             this.Model = model;
-            this.Messages = new List<ODataUrlValidationMessage>();
+            this.messages = new List<ODataUrlValidationMessage>();
             this.UrlValidator = urlValidator;
             this.ExpressionValidator = new ExpressionValidator((item) => urlValidator.ValidateItem(item, this));
             this.PathValidator = new PathSegmentValidator(this);
@@ -63,14 +72,23 @@ namespace Microsoft.OData.UriParser.Validation
         }
 
         /// <summary>
-        /// Add an <see cref="ODataUrlValidationMessage"/> to the collection of validation messages.
+        /// Adds an <see cref="ODataUrlValidationMessage"/> to the collection of validation messages.
         /// </summary>
         /// <param name="code">The message code of the message.</param>
         /// <param name="message">The human readable message.</param>
         /// <param name="severity">The severity of the message.</param>
         public void AddMessage(string code, string message, Severity severity)
         {
-            this.Messages.Add(new ODataUrlValidationMessage(code, message, severity));
+            this.AddMessage(new ODataUrlValidationMessage(code, message, severity));
+        }
+
+        /// <summary>
+        /// Adds an <see cref="ODataUrlValidationMessage"/> to the collection of validation messages.
+        /// </summary>
+        /// <param name="ODataUrlValidationMessage">The <see cref="ODataUrlValidationMessage"/> to add.</param>
+        public void AddMessage(ODataUrlValidationMessage odataUrlValidationMessage)
+        {
+            this.messages.Add(odataUrlValidationMessage);
         }
     }
 }

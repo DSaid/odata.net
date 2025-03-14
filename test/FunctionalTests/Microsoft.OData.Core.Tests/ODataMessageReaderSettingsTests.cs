@@ -36,7 +36,9 @@ namespace Microsoft.OData.Tests
             Assert.True(1000 == settings.MessageQuotas.MaxOperationsPerChangeset, "MaxOperationsPerChangeset should be int.MaxValue.");
             Assert.True(100 == settings.MessageQuotas.MaxNestingDepth, "The MaxNestingDepth should be set to 100 by default.");
             Assert.True(1024 * 1024 == settings.MessageQuotas.MaxReceivedMessageSize, "The MaxMessageSize should be set to 1024 * 1024 by default.");
-            Assert.True(ODataLibraryCompatibility.Latest == settings.LibraryCompatibility, "The LibraryCompatibility should be set to ODataLibraryCompatibility.Latest by default.");
+            Assert.True(ODataLibraryCompatibility.None == settings.LibraryCompatibility, "The LibraryCompatibility should be set to ODataLibraryCompatibility.None by default.");
+            Assert.False(settings.EnableReadingODataAnnotationWithoutPrefix);
+            Assert.False(settings.EnableReadingKeyAsSegment);
         }
 
         [Fact]
@@ -61,7 +63,35 @@ namespace Microsoft.OData.Tests
             Assert.True(1000 == settings.MessageQuotas.MaxOperationsPerChangeset, "MaxOperationsPerChangeset should be int.MaxValue.");
             Assert.True(100 == settings.MessageQuotas.MaxNestingDepth, "The MaxNestingDepth should be set to 100 by default.");
             Assert.True(1024 * 1024 == settings.MessageQuotas.MaxReceivedMessageSize, "The MaxMessageSize should be set to 1024 * 1024 by default.");
-            Assert.True(ODataLibraryCompatibility.Latest == settings.LibraryCompatibility, "The LibraryCompatibility should be set to ODataLibraryCompatibility.Latest by default.");
+            Assert.True(ODataLibraryCompatibility.None == settings.LibraryCompatibility, "The LibraryCompatibility should be set to ODataLibraryCompatibility.None by default.");
+            Assert.False(settings.EnableReadingKeyAsSegment);
+            Assert.True(settings.EnableReadingODataAnnotationWithoutPrefix);
+        }
+
+        [Fact]
+        public void DefaultValuesTest40()
+        {
+            ODataMessageReaderSettings settings = new ODataMessageReaderSettings(ODataVersion.V4);
+            Assert.True((settings.Validations & ValidationKinds.ThrowOnDuplicatePropertyNames) != 0, "The ThrowOnDuplicatePropertyNames should be true by default");
+            Assert.Null(settings.BaseUri);
+            Assert.Null(settings.ClientCustomTypeResolver);
+            Assert.Null(settings.PrimitiveTypeResolver);
+            Assert.True(settings.EnablePrimitiveTypeConversion, "EnablePrimitiveTypeConversion should be true by default.");
+            Assert.True(settings.EnableMessageStreamDisposal, "EnableMessageStreamDisposal should be false by default.");
+            Assert.False(settings.EnableCharactersCheck, "The CheckCharacters should be off by default.");
+            Assert.True((settings.Validations & ValidationKinds.ThrowIfTypeConflictsWithMetadata) != 0, "The ThrowIfTypeConflictsWithMetadata should be true by default");
+            Assert.Null(settings.ShouldIncludeAnnotation);
+            Assert.True(settings.ReadUntypedAsString, "ReadUntypedAsString should be true by default for OData 4.0.");
+            Assert.True((settings.Validations & ValidationKinds.ThrowOnUndeclaredPropertyForNonOpenType) != 0, "ThrowOnUndeclaredPropertyForNonOpenType should be true by default.");
+            Assert.True(ODataVersion.V4 == settings.Version, "Version should be 4.0.");
+            Assert.True(ODataVersion.V4 == settings.MaxProtocolVersion, "MaxProtocolVersion should be V4.");
+            Assert.True(100 == settings.MessageQuotas.MaxPartsPerBatch, "MaxPartsPerBatch should be int.MaxValue.");
+            Assert.True(1000 == settings.MessageQuotas.MaxOperationsPerChangeset, "MaxOperationsPerChangeset should be int.MaxValue.");
+            Assert.True(100 == settings.MessageQuotas.MaxNestingDepth, "The MaxNestingDepth should be set to 100 by default.");
+            Assert.True(1024 * 1024 == settings.MessageQuotas.MaxReceivedMessageSize, "The MaxMessageSize should be set to 1024 * 1024 by default.");
+            Assert.True(ODataLibraryCompatibility.None == settings.LibraryCompatibility, "The LibraryCompatibility should be set to ODataLibraryCompatibility.None by default.");
+            Assert.False(settings.EnableReadingODataAnnotationWithoutPrefix);
+            Assert.False(settings.EnableReadingKeyAsSegment);
         }
 
         [Fact]
@@ -154,7 +184,7 @@ namespace Microsoft.OData.Tests
             copyOfSettings = settings.Clone();
             this.CompareMessageReaderSettings(settings, copyOfSettings);
         }
-#if NETCOREAPP3_1
+
         [Fact]
         public void ODataMessageReaderSettingsErrorTest()
         {
@@ -180,33 +210,7 @@ namespace Microsoft.OData.Tests
             test = () => new ODataMessageReaderSettings() { MessageQuotas = new ODataMessageQuotas() { MaxReceivedMessageSize = 0 } };
             test.Throws<ArgumentOutOfRangeException>(Strings.ExceptionUtils_CheckLongPositive("0") + " (Parameter 'MaxReceivedMessageSize')");
         }
-#else
-        [Fact]
-        public void ODataMessageReaderSettingsErrorTest()
-        {
-            // MaxPartsPerBatch
-            Action test = () => new ODataMessageReaderSettings() { MessageQuotas = new ODataMessageQuotas() { MaxPartsPerBatch = -1 } };
-            test.Throws<ArgumentOutOfRangeException>(Strings.ExceptionUtils_CheckIntegerNotNegative("-1") + "\r\nParameter name: MaxPartsPerBatch");
 
-            // MaxOperationsPerChangeset
-            test = () => new ODataMessageReaderSettings() { MessageQuotas = new ODataMessageQuotas() { MaxOperationsPerChangeset = -1 } };
-            test.Throws<ArgumentOutOfRangeException>(Strings.ExceptionUtils_CheckIntegerNotNegative("-1") + "\r\nParameter name: MaxOperationsPerChangeset");
-
-            // MaxNestingDepth
-            test = () => new ODataMessageReaderSettings() { MessageQuotas = new ODataMessageQuotas() { MaxNestingDepth = -1 } };
-            test.Throws<ArgumentOutOfRangeException>(Strings.ExceptionUtils_CheckIntegerPositive("-1") + "\r\nParameter name: MaxNestingDepth");
-
-            test = () => new ODataMessageReaderSettings() { MessageQuotas = new ODataMessageQuotas() { MaxNestingDepth = 0 } };
-            test.Throws<ArgumentOutOfRangeException>(Strings.ExceptionUtils_CheckIntegerPositive("0") + "\r\nParameter name: MaxNestingDepth");
-
-            // MaxMessageSize
-            test = () => new ODataMessageReaderSettings() { MessageQuotas = new ODataMessageQuotas() { MaxReceivedMessageSize = -1 } };
-            test.Throws<ArgumentOutOfRangeException>(Strings.ExceptionUtils_CheckLongPositive("-1") + "\r\nParameter name: MaxReceivedMessageSize");
-
-            test = () => new ODataMessageReaderSettings() { MessageQuotas = new ODataMessageQuotas() { MaxReceivedMessageSize = 0 } };
-            test.Throws<ArgumentOutOfRangeException>(Strings.ExceptionUtils_CheckLongPositive("0") + "\r\nParameter name: MaxReceivedMessageSize");
-        }
-#endif
         private void CompareMessageReaderSettings(ODataMessageReaderSettings expected, ODataMessageReaderSettings actual)
         {
             if (expected == null && actual == null)

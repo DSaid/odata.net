@@ -11,11 +11,12 @@ namespace Microsoft.Test.OData.PluggableFormat.Avro.Test
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Hadoop.Avro;
     using Microsoft.Hadoop.Avro.Container;
     using Microsoft.OData;
+    using Microsoft.OData.Core.Tests.DependencyInjection;
     using Microsoft.OData.Edm;
-    using Microsoft.Test.OData.DependencyInjection;
     using Microsoft.VisualStudio.TestTools.UnitTesting;
 
     [TestClass]
@@ -107,8 +108,8 @@ namespace Microsoft.Test.OData.PluggableFormat.Avro.Test
             action.AddParameter("Products", new EdmCollectionTypeReference(new EdmCollectionType(new EdmEntityTypeReference(EntryType, false))));
             GetMaxId = action;
 
-            container = ContainerBuilderHelper.BuildContainer(builder =>
-                builder.AddService<ODataMediaTypeResolver, AvroMediaTypeResolver>(ServiceLifetime.Singleton));
+            container = ServiceProviderHelper.BuildServiceProvider(builder =>
+                builder.AddSingleton<ODataMediaTypeResolver, AvroMediaTypeResolver>());
         }
 
         [TestMethod]
@@ -591,7 +592,7 @@ namespace Microsoft.Test.OData.PluggableFormat.Avro.Test
         {
             ODataError odataError = new ODataError()
             {
-                ErrorCode = "404",
+                Code = "404",
                 Message = "Not Found",
             };
 

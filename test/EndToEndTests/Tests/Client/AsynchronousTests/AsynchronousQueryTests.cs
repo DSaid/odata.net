@@ -11,6 +11,7 @@ namespace Microsoft.Test.OData.Tests.Client.AsynchronousTests
     using System.Linq;
     using System.Net;
     using System.Reflection;
+    using System.Threading.Tasks;
     using Microsoft.OData.Client;
     using Microsoft.Test.OData.Services.TestServices;
     using Microsoft.Test.OData.Services.TestServices.AstoriaDefaultServiceReference;
@@ -168,7 +169,7 @@ namespace Microsoft.Test.OData.Tests.Client.AsynchronousTests
         {
             var value = "";
             var context = this.CreateWrappedContext<DefaultContainer>().Context;
-            context.SendingRequest2 += (sender, eventArgs) => ((HttpWebRequestMessage)eventArgs.RequestMessage).SetHeader("Prefer", "odata.include-annotations=*");
+            context.SendingRequest2 += (sender, eventArgs) => ((HttpClientRequestMessage)eventArgs.RequestMessage).SetHeader("Prefer", "odata.include-annotations=*");
             context.Configurations.ResponsePipeline.OnEntryEnded((ReadingEntryArgs) => value = (ReadingEntryArgs.Entry.InstanceAnnotations).FirstOrDefault().Name);
 
             var query = context.Computer.OrderBy(c => c.ComputerId) as DataServiceQuery<Computer>;
@@ -788,6 +789,58 @@ namespace Microsoft.Test.OData.Tests.Client.AsynchronousTests
             this.EnqueueTestComplete();
         }
 
+        [Fact]
+        public async Task Linq_ProjectPropertiesFromEntityWithConditionalNullCheckOnExpandedEntity()
+        {
+            var context = this.CreateWrappedContext<DefaultContainer>().Context;
+            var query = context.Computer.Where(c => c.ComputerId == -10)
+                        .Select(c => new Computer
+                         {
+                             ComputerId = c.ComputerId,
+                             // this contrived expression is to get the plan compiler to perform
+                             // a null check against an expanded entity
+                             ComputerDetail = c.ComputerDetail == null ? null : c.ComputerDetail,
+                         }) as DataServiceQuery<Computer>;
+
+            var result = await query.ExecuteAsync();
+
+            var computer = result.First();
+            Assert.Equal(-10, computer.ComputerId);
+            Assert.Equal(-10, computer.ComputerDetail.ComputerDetailId);
+        }
+
+        [Fact]
+        public async Task Linq_ProjectPropertiesFromNestedExpandedEntityToADifferentTargetTypeFromTheSource()
+        {
+            var context = this.CreateWrappedContext<DefaultContainer>().Context;
+            var query = context.ComputerDetail.Where(c => c.ComputerDetailId == -10)
+                .Select(c => new Computer
+                {
+                    ComputerId = c.Computer.ComputerId,
+                }) as DataServiceQuery<Computer>;
+
+            var result = await query.ExecuteAsync();
+
+            var computer = result.First();
+            Assert.Equal(-10, computer.ComputerId);
+        }
+
+        [Fact]
+        public async Task Linq_ProjectPropertiesFromNestedComplexTypeToADifferentTargetTypeFromTheSource()
+        {
+            var context = this.CreateWrappedContext<DefaultContainer>().Context;
+            var query = context.Customer.Where(c => c.CustomerId == -10)
+                .Select(c => new ContactDetails
+                {
+                    HomePhone = c.PrimaryContactInfo.HomePhone
+                }) as DataServiceQuery<ContactDetails>;
+
+            var result = await query.ExecuteAsync();
+
+            var contactDetails = result.First();
+            Assert.Equal("jqjklhnnkyhujailcedbguyectpuamgbghreatqvobbtj", contactDetails.HomePhone.Extension);
+        }
+
         /// <summary>
         /// LINQ query Project Name Stream Property
         /// </summary>
@@ -1270,7 +1323,6 @@ namespace Microsoft.Test.OData.Tests.Client.AsynchronousTests
         public void Linq_Where_Generates_Filter_When_KeyComparisonGeneratesFilterQuery_Is_True()
         {
             var context = this.CreateWrappedContext<DefaultContainer>().Context;
-            context.KeyComparisonGeneratesFilterQuery = true;
             var query = context.Customer.Where(c => c.CustomerId == -10);
             var uri = query.ToString();
             Assert.EndsWith("$filter=CustomerId eq -10", uri);
@@ -1283,8 +1335,7 @@ namespace Microsoft.Test.OData.Tests.Client.AsynchronousTests
         public void Linq_Where_Generates_ByKey_When_KeyComparisonGeneratesFilterQuery_Is_False()
         {
             var context = this.CreateWrappedContext<DefaultContainer>().Context;
-            // By default context.KeyComparisonGeneratesFilterQuery = false;
-            // So we don't need to set it
+            context.KeyComparisonGeneratesFilterQuery = false;
             var query = context.Customer.Where(c => c.CustomerId == -10);
             var uri = query.ToString();
             Assert.EndsWith("Customer(-10)", uri);

@@ -106,7 +106,7 @@ namespace Microsoft.OData
             {
                 return duplicatePropertyNameChecker
                        ?? (duplicatePropertyNameChecker
-                           = outputContext.MessageWriterSettings.Validator.CreateDuplicatePropertyNameChecker());
+                           = outputContext.MessageWriterSettings.Validator.GetDuplicatePropertyNameChecker());
             }
         }
 
@@ -147,6 +147,7 @@ namespace Microsoft.OData
             catch
             {
                 this.ReplaceScope(CollectionWriterState.Error, null);
+
                 throw;
             }
         }
@@ -159,8 +160,7 @@ namespace Microsoft.OData
         {
             this.VerifyCanFlush(false);
 
-            // make sure we switch to writer state Error if an exception is thrown during flushing.
-            return this.FlushAsynchronously().FollowOnFaultWith(t => this.ReplaceScope(CollectionWriterState.Error, null));
+            return this.FlushImplementationAsync();
         }
 
         /// <summary>
@@ -178,11 +178,10 @@ namespace Microsoft.OData
         /// </summary>
         /// <param name="collection">The <see cref="ODataCollectionStart"/> representing the collection.</param>
         /// <returns>A task instance that represents the asynchronous write operation.</returns>
-        public sealed override async Task WriteStartAsync(ODataCollectionStart collection)
+        public sealed override Task WriteStartAsync(ODataCollectionStart collection)
         {
             this.VerifyCanWriteStart(false, collection);
-            await this.WriteStartImplementationAsync(collection)
-                .ConfigureAwait(false);
+            return this.WriteStartImplementationAsync(collection);
         }
 
         /// <summary>
@@ -200,11 +199,10 @@ namespace Microsoft.OData
         /// </summary>
         /// <param name="item">The collection item to write.</param>
         /// <returns>A task instance that represents the asynchronous write operation.</returns>
-        public sealed override async Task WriteItemAsync(object item)
+        public sealed override Task WriteItemAsync(object item)
         {
             this.VerifyCanWriteItem(false);
-            await this.WriteItemImplementationAsync(item)
-                .ConfigureAwait(false);
+            return this.WriteItemImplementationAsync(item);
         }
 
         /// <summary>
@@ -857,6 +855,26 @@ namespace Microsoft.OData
                 await this.InterceptExceptionAsync((thisParam) => thisParam.EndPayloadAsync())
                     .ConfigureAwait(false);
                 this.NotifyListener(CollectionWriterState.Completed);
+            }
+        }
+
+        /// <summary>
+        /// Flush asynchronously - actual implementation
+        /// </summary>
+        /// <returns>A task instance that represents the asynchronous operation.</returns>
+        private async Task FlushImplementationAsync()
+        {
+            // Make sure we switch to writer state Error if an exception is thrown during flushing.
+            try
+            {
+                await this.FlushAsynchronously()
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                this.ReplaceScope(CollectionWriterState.Error, null);
+
+                throw;
             }
         }
 

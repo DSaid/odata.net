@@ -46,9 +46,75 @@ namespace Microsoft.OData.Tests.Json
             Assert.Equal("any target", error.Target);
             Assert.Equal(1, error.Details.Count);
             var detail = error.Details.Single();
-            Assert.Equal("500", detail.ErrorCode);
+            Assert.Equal("500", detail.Code);
             Assert.Equal("another target", detail.Target);
             Assert.Equal("any msg", detail.Message);
+        }
+
+        [Theory]
+        [MemberData(nameof(GetUnintelligibleErrorData))]
+        public void ReadInStreamErrorProperty_DoesNotThrowExceptionForUnintelligibleError(string payload)
+        {
+            // Arrange
+            var stringReader = new StringReader(payload);
+            using (var jsonReader = new JsonReader(stringReader, false))
+            {
+                var bufferingReader = new BufferingJsonReader(jsonReader, "error", MaxInnerErrorDepth);
+
+                // Act & Assert
+                Assert.True(bufferingReader.Read());
+            }
+        }
+
+        [Fact]
+        public void StartBufferingAndTryToReadInStreamErrorPropertyValueWithMultipleErrorDetails_Works()
+        {
+            // Arrange
+            var payload = "{" +
+                $"\"code\":\"{ErrorCode}\"," +
+                $"\"message\":\"{ErrorMessage}\"," +
+                $"\"target\":\"{ErrorTarget}\"," +
+                "\"innererror\":{" +
+                $"\"type\":\"{InnerErrorTypeName}\"," +
+                $"\"message\":\"{InnerErrorMessage}\"," +
+                $"\"stacktrace\":\"{InnerErrorStackTrace}\"," +
+                $"\"internalexception\":{{}}}}," +
+                $"\"details\":[{{\"code\":\"dxd1\",\"message\":\"dmg1\"}},{{\"code\":\"dxd2\",\"message\":\"dmg2\"}}]}}";
+            ODataError error;
+
+            var stringReader = new StringReader(payload);
+            using (var jsonReader = new JsonReader(stringReader, false))
+            {
+                var bufferingReader = new BufferingJsonReader(jsonReader, "other", MaxInnerErrorDepth);
+
+                // Act
+                var result1 = bufferingReader.Read();
+                var result2 = bufferingReader.StartBufferingAndTryToReadInStreamErrorPropertyValue(out error);
+
+                // Assert
+                Assert.True(result1);
+                Assert.True(result2);
+
+                Assert.NotNull(error);
+                Assert.Equal(ErrorCode, error.Code);
+                Assert.Equal(ErrorMessage, error.Message);
+                Assert.Equal(ErrorTarget, error.Target);
+                var innerError = error.InnerError;
+                Assert.NotNull(innerError);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorMessageName, out ODataValue innerErrorMessage));
+                Assert.Equal(InnerErrorMessage, Assert.IsType<ODataPrimitiveValue>(innerErrorMessage).Value);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorTypeNameName, out ODataValue innerErrorTypeName));
+                Assert.Equal(InnerErrorTypeName, Assert.IsType<ODataPrimitiveValue>(innerErrorTypeName).Value);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorStackTraceName, out ODataValue innerErrorStackTrace));
+                Assert.Equal(InnerErrorStackTrace.Replace("\\\\", "\\"), Assert.IsType<ODataPrimitiveValue>(innerErrorStackTrace).Value);
+                Assert.NotNull(innerError.InnerError);
+                Assert.NotNull(error.Details);
+                Assert.Equal(2, error.Details.Count);
+                Assert.Equal("dxd1", error.Details.ElementAt(0).Code);
+                Assert.Equal("dmg1", error.Details.ElementAt(0).Message);
+                Assert.Equal("dxd2", error.Details.ElementAt(1).Code);
+                Assert.Equal("dmg2", error.Details.ElementAt(1).Message);
+            }
         }
 
         [Fact]
@@ -78,18 +144,21 @@ namespace Microsoft.OData.Tests.Json
                 // Assert
                 var error = exception.Error;
                 Assert.NotNull(error);
-                Assert.Equal(ErrorCode, error.ErrorCode);
+                Assert.Equal(ErrorCode, error.Code);
                 Assert.Equal(ErrorMessage, error.Message);
                 Assert.Equal(ErrorTarget, error.Target);
                 var innerError = error.InnerError;
                 Assert.NotNull(innerError);
-                Assert.Equal(InnerErrorMessage, innerError.Message);
-                Assert.Equal(InnerErrorTypeName, innerError.TypeName);
-                Assert.Equal(InnerErrorStackTrace.Replace("\\\\", "\\"), innerError.StackTrace);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorMessageName, out ODataValue innerErrorMessage));
+                Assert.Equal(InnerErrorMessage, Assert.IsType<ODataPrimitiveValue>(innerErrorMessage).Value);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorTypeNameName, out ODataValue innerErrorTypeName));
+                Assert.Equal(InnerErrorTypeName, Assert.IsType<ODataPrimitiveValue>(innerErrorTypeName).Value);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorStackTraceName, out ODataValue innerErrorStackTrace));
+                Assert.Equal(InnerErrorStackTrace.Replace("\\\\", "\\"), Assert.IsType<ODataPrimitiveValue>(innerErrorStackTrace).Value);
                 Assert.NotNull(innerError.InnerError);
                 Assert.NotNull(error.Details);
                 var errorDetail = Assert.Single(error.Details);
-                Assert.Equal(ErrorDetailErrorCode, errorDetail.ErrorCode);
+                Assert.Equal(ErrorDetailErrorCode, errorDetail.Code);
                 Assert.Equal(ErrorDetailErrorMessage, errorDetail.Message);
                 Assert.Null(errorDetail.Target);
             }
@@ -121,22 +190,25 @@ namespace Microsoft.OData.Tests.Json
 
                 // Assert
                 Assert.True(result1);
-                Assert.True(result2.Item1);
+                Assert.True(result2.IsReadSuccessfully);
 
-                var error = result2.Item2;
+                var error = result2.Error;
                 Assert.NotNull(error);
-                Assert.Equal(ErrorCode, error.ErrorCode);
+                Assert.Equal(ErrorCode, error.Code);
                 Assert.Equal(ErrorMessage, error.Message);
                 Assert.Equal(ErrorTarget, error.Target);
                 var innerError = error.InnerError;
                 Assert.NotNull(innerError);
-                Assert.Equal(InnerErrorMessage, innerError.Message);
-                Assert.Equal(InnerErrorTypeName, innerError.TypeName);
-                Assert.Equal(InnerErrorStackTrace.Replace("\\\\", "\\"), innerError.StackTrace);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorMessageName, out ODataValue innerErrorMessage));
+                Assert.Equal(InnerErrorMessage, Assert.IsType<ODataPrimitiveValue>(innerErrorMessage).Value);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorTypeNameName, out ODataValue innerErrorTypeName));
+                Assert.Equal(InnerErrorTypeName, Assert.IsType<ODataPrimitiveValue>(innerErrorTypeName).Value);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorStackTraceName, out ODataValue innerErrorStackTrace));
+                Assert.Equal(InnerErrorStackTrace.Replace("\\\\", "\\"), Assert.IsType<ODataPrimitiveValue>(innerErrorStackTrace).Value);
                 Assert.NotNull(innerError.InnerError);
                 Assert.NotNull(error.Details);
                 var errorDetail = Assert.Single(error.Details);
-                Assert.Equal(ErrorDetailErrorCode, errorDetail.ErrorCode);
+                Assert.Equal(ErrorDetailErrorCode, errorDetail.Code);
                 Assert.Equal(ErrorDetailErrorMessage, errorDetail.Message);
                 Assert.Null(errorDetail.Target);
             }
@@ -338,9 +410,60 @@ namespace Microsoft.OData.Tests.Json
                 Assert.Null(error.InnerError);
                 Assert.NotNull(error.Details);
                 var errorDetail = Assert.Single(error.Details);
-                Assert.Equal(ErrorDetailErrorCode, errorDetail.ErrorCode);
+                Assert.Equal(ErrorDetailErrorCode, errorDetail.Code);
                 Assert.Equal(ErrorDetailErrorMessage, errorDetail.Message);
                 Assert.Null(errorDetail.Target);
+            }
+        }
+
+        [Fact]
+        public async Task StartBufferingAndTryToReadInStreamErrorPropertyValueWithMultipleErrorDetailsAsync_Works()
+        {
+            // Arrange
+            var payload = "{" +
+                $"\"code\":\"{ErrorCode}\"," +
+                $"\"message\":\"{ErrorMessage}\"," +
+                $"\"target\":\"{ErrorTarget}\"," +
+                "\"innererror\":{" +
+                $"\"type\":\"{InnerErrorTypeName}\"," +
+                $"\"message\":\"{InnerErrorMessage}\"," +
+                $"\"stacktrace\":\"{InnerErrorStackTrace}\"," +
+                $"\"internalexception\":{{}}}}," +
+                $"\"details\":[{{\"code\":\"dxd1\",\"message\":\"dmg1\"}},{{\"code\":\"dxd2\",\"message\":\"dmg2\"}}]}}";
+
+            var stringReader = new StringReader(payload);
+            using (var jsonReader = new JsonReader(stringReader, false))
+            {
+                var bufferingReader = new BufferingJsonReader(jsonReader, "other", MaxInnerErrorDepth);
+
+                // Act
+                var result1 = await bufferingReader.ReadAsync();
+                var result2 = await bufferingReader.StartBufferingAndTryToReadInStreamErrorPropertyValueAsync();
+
+                // Assert
+                Assert.True(result1);
+                Assert.True(result2.IsReadSuccessfully);
+
+                var error = result2.Error;
+                Assert.NotNull(error);
+                Assert.Equal(ErrorCode, error.Code);
+                Assert.Equal(ErrorMessage, error.Message);
+                Assert.Equal(ErrorTarget, error.Target);
+                var innerError = error.InnerError;
+                Assert.NotNull(innerError);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorMessageName, out ODataValue innerErrorMessage));
+                Assert.Equal(InnerErrorMessage, Assert.IsType<ODataPrimitiveValue>(innerErrorMessage).Value);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorTypeNameName, out ODataValue innerErrorTypeName));
+                Assert.Equal(InnerErrorTypeName, Assert.IsType<ODataPrimitiveValue>(innerErrorTypeName).Value);
+                Assert.True(innerError.Properties.TryGetValue(JsonConstants.ODataErrorInnerErrorStackTraceName, out ODataValue innerErrorStackTrace));
+                Assert.Equal(InnerErrorStackTrace.Replace("\\\\", "\\"), Assert.IsType<ODataPrimitiveValue>(innerErrorStackTrace).Value);
+                Assert.NotNull(innerError.InnerError);
+                Assert.NotNull(error.Details);
+                Assert.Equal(2, error.Details.Count);
+                Assert.Equal("dxd1", error.Details.ElementAt(0).Code);
+                Assert.Equal("dmg1", error.Details.ElementAt(0).Message);
+                Assert.Equal("dxd2", error.Details.ElementAt(1).Code);
+                Assert.Equal("dmg2", error.Details.ElementAt(1).Message);
             }
         }
 

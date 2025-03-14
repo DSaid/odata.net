@@ -8,6 +8,7 @@ using System.Diagnostics;
 
 namespace Microsoft.OData.UriParser
 {
+    using System;
     using System.Text;
     using System.Collections.Generic;
     using System.Linq;
@@ -21,7 +22,7 @@ namespace Microsoft.OData.UriParser
     /// <remarks>
     /// The values that these methods compute are not cached.
     /// </remarks>
-    internal static class ODataPathExtensions
+    public static class ODataPathExtensions
     {
         /// <summary>
         /// Computes the <see cref="IEdmTypeReference"/> of the resource identified by this <see cref="ODataPath"/>.
@@ -31,7 +32,12 @@ namespace Microsoft.OData.UriParser
         /// resource with a type.</returns>
         public static IEdmTypeReference EdmType(this ODataPath path)
         {
-            return path.LastSegment.EdmType.ToTypeReference();
+            if (path == null)
+            {
+                throw Error.ArgumentNull(nameof(path));
+            }
+
+            return path.LastSegment?.EdmType?.ToTypeReference();
         }
 
         /// <summary>
@@ -42,7 +48,12 @@ namespace Microsoft.OData.UriParser
         /// resource that is part of a set.</returns>
         public static IEdmNavigationSource NavigationSource(this ODataPath path)
         {
-            return path.LastSegment.TranslateWith(new DetermineNavigationSourceTranslator());
+            if (path == null)
+            {
+                throw Error.ArgumentNull(nameof(path));
+            }
+
+            return path.LastSegment?.TranslateWith(DetermineNavigationSourceTranslator.Instance);
         }
 
         /// <summary>
@@ -52,7 +63,159 @@ namespace Microsoft.OData.UriParser
         /// <returns>True if the resource if a resource set or collection of primitive or complex types. False otherwise.</returns>
         public static bool IsCollection(this ODataPath path)
         {
-            return path.LastSegment.TranslateWith(new IsCollectionTranslator());
+            if (path == null)
+            {
+                throw Error.ArgumentNull(nameof(path));
+            }
+
+            bool? isCollection = path.LastSegment?.TranslateWith(IsCollectionTranslator.Instance);
+
+            return isCollection.GetValueOrDefault();
+        }
+
+        /// <summary>
+        /// Get the string representation of <see cref="ODataPath"/>.
+        /// mainly translate Query Url path.
+        /// </summary>
+        /// <param name="path">Path to perform the computation on.</param>
+        /// <param name="urlKeyDelimiter">Mark whether key is segment</param>
+        /// <returns>The string representation of the Query Url path.</returns>
+        public static string ToResourcePathString(this ODataPath path, ODataUrlKeyDelimiter urlKeyDelimiter)
+        {
+            if (path == null)
+            {
+                throw Error.ArgumentNull(nameof(path));
+            }
+
+            if (urlKeyDelimiter == null)
+            {
+                throw Error.ArgumentNull(nameof(urlKeyDelimiter));
+            }
+
+            return string.Concat(path.WalkWith(new PathSegmentToResourcePathTranslator(urlKeyDelimiter)).ToArray()).TrimStart('/');
+        }
+
+        /// <summary>
+        /// Remove the key segment in the end of ODataPath, the method does not modify current ODataPath instance,
+        /// it returns a new ODataPath without ending type segment.
+        /// If last segment is type cast, the key before type cast segment would be removed.
+        /// </summary>
+        /// <param name="path">Path to perform the computation on.</param>
+        /// <returns>The ODataPath without key segment removed</returns>
+        public static ODataPath TrimEndingKeySegment(this ODataPath path)
+        {
+            if (path == null)
+            {
+                throw Error.ArgumentNull(nameof(path));
+            }
+
+            // if the path ends in type segments
+            // we should remove the key segment before the type segments
+
+            if (path.Count == 0)
+            {
+                return path;
+            }
+
+            int typeSplitIndex = path.Count - 1;
+            while (typeSplitIndex > -1 && path[typeSplitIndex] is TypeSegment)
+            {
+                typeSplitIndex--;
+            }
+
+            if (!(path[typeSplitIndex] is KeySegment))
+            {
+                // path does not end with a key segment
+                return path;
+            }
+
+            List<ODataPathSegment> newSegments = new List<ODataPathSegment>(path.Count - 1);
+
+            for (int i = 0; i < typeSplitIndex; i++)
+            {
+                newSegments.Add(path[i]);
+            }
+
+            for (int i = typeSplitIndex + 1; i < path.Count; i++)
+            {
+                newSegments.Add(path[i]);
+            }
+
+            // Since we created the segments list here and we're sure it's not going to be
+            // used anywhere else, it's safe and much more efficient to tell ODataPath
+            // to take it as is without making an internal copy.
+            return ODataPath.CreateFromListWithoutCopying(newSegments, verifySegmentsNotNull: false);
+        }
+
+        /// <summary>
+        /// Remove the type-cast segment in the end of ODataPath, the method does not modify current ODataPath instance,
+        /// it returns a new ODataPath without ending type segment.
+        /// </summary>
+        /// <param name="path">Path to perform the computation on.</param>
+        /// <returns>The ODataPath without type-cast in the end</returns>
+        public static ODataPath TrimEndingTypeSegment(this ODataPath path)
+        {
+            if (path == null)
+            {
+                throw Error.ArgumentNull(nameof(path));
+            }
+
+            if (path.Count == 0)
+            {
+                return path;
+            }
+
+            int typeSplitIndex = path.Count - 1;
+            while (typeSplitIndex > -1 && path[typeSplitIndex] is TypeSegment)
+            {
+                typeSplitIndex--;
+            }
+
+            if (typeSplitIndex == path.Count - 1)
+            {
+                // no ending type segment
+                return path;
+            }
+
+            List<ODataPathSegment> newSegments = new List<ODataPathSegment>(typeSplitIndex);
+            for (int i = 0; i <= typeSplitIndex; i++)
+            {
+                newSegments.Add(path[i]);
+            }
+
+            // Since we created the segments list here and we're sure it's not going to be
+            // used anywhere else, it's safe and much more efficient to tell ODataPath
+            // to take it as is without making an internal copy.
+            return ODataPath.CreateFromListWithoutCopying(newSegments, verifySegmentsNotNull: false);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="ODataPath"/> that is <paramref name="path"/> with the type segments and key segments removed from the end
+        /// </summary>
+        /// <param name="path">The <see cref="ODataPath"/> to trim the ending of</param>
+        /// <returns>A <see cref="ODataPath"/> without type-cast and key segments at the end</returns>
+        /// <exception cref="System.ArgumentNullException">Thrown if <paramref name="path"/> is <see langword="null"/></exception>
+        public static ODataPath TrimEndingTypeAndKeySegments(this ODataPath path)
+        {
+            if (path == null)
+            {
+                throw Error.ArgumentNull(nameof(path));
+            }
+
+            int lastIndex = path.Segments.FindLastIndex(segment => !(segment is KeySegment || segment is TypeSegment));
+            
+            if (lastIndex == path.Count - 1)
+            {
+                return path;
+            }
+
+            List<ODataPathSegment> newSegments = new List<ODataPathSegment>(lastIndex);
+            for (int i = 0; i <= lastIndex; i++)
+            {
+                newSegments.Add(path[i]);
+            }
+
+            return ODataPath.CreateFromListWithoutCopying(newSegments, verifySegmentsNotNull: false);
         }
 
         /// <summary>
@@ -61,11 +224,17 @@ namespace Microsoft.OData.UriParser
         /// <param name="path">The path against which the segment should be applied.</param>
         /// <param name="segment">The segment applied to the path.</param>
         /// <returns>A new ODataPath with the segment appended.</returns>
-        public static ODataPath AddSegment(this ODataPath path, ODataPathSegment segment)
+        internal static ODataPath AddSegment(this ODataPath path, ODataPathSegment segment)
         {
-            var newPath = new ODataPath(path);
-            newPath.Add(segment);
-            return newPath;
+            if (segment == null)
+            {
+                throw new ArgumentNullException(nameof(segment));
+            }
+
+            List<ODataPathSegment> newSegments = new List<ODataPathSegment>(path.Count + 1);
+            newSegments.AddRange(path.Segments);
+            newSegments.Add(segment);
+            return ODataPath.CreateFromListWithoutCopying(newSegments, verifySegmentsNotNull: false);
         }
 
         /// <summary>
@@ -75,7 +244,7 @@ namespace Microsoft.OData.UriParser
         /// <param name="navigationProperty">The navigation property this segment represents.</param>
         /// <param name="navigationSource">The navigation source of the entities targeted by this navigation property. This can be null.</param>
         /// <returns>A new ODataPath with navigation property segment appended to the end.</returns>
-        public static ODataPath AddNavigationPropertySegment(this ODataPath path, IEdmNavigationProperty navigationProperty, IEdmNavigationSource navigationSource)
+        internal static ODataPath AddNavigationPropertySegment(this ODataPath path, IEdmNavigationProperty navigationProperty, IEdmNavigationSource navigationSource)
         {
             NavigationPropertySegment navigationSegment = new NavigationPropertySegment(navigationProperty, navigationSource);
             return path.AddSegment(navigationSegment);
@@ -87,7 +256,7 @@ namespace Microsoft.OData.UriParser
         /// <param name="path">Path to perform the computation on.</param>
         /// <param name="property">The property this segment represents.</param>
         /// <returns>>A new ODataPath with property segment appended to the end.</returns>
-        public static ODataPath AddPropertySegment(this ODataPath path, IEdmStructuralProperty property)
+        internal static ODataPath AddPropertySegment(this ODataPath path, IEdmStructuralProperty property)
         {
             PropertySegment propertySegment = new PropertySegment(property);
             return path.AddSegment(propertySegment);
@@ -103,52 +272,44 @@ namespace Microsoft.OData.UriParser
         /// <param name="edmType">The type of the item this key returns.</param>
         /// <param name="navigationSource">The navigation source that this key is used to search.</param>
         /// <returns>A new ODataPath with key segment added</returns>
-        public static ODataPath AddKeySegment(this ODataPath path, IEnumerable<KeyValuePair<string, object>> keys, IEdmEntityType edmType, IEdmNavigationSource navigationSource)
+        internal static ODataPath AddKeySegment(this ODataPath path, IEnumerable<KeyValuePair<string, object>> keys, IEdmEntityType edmType, IEdmNavigationSource navigationSource)
         {
-            var handler = new SplitEndingSegmentOfTypeHandler<TypeSegment>();
-            path.WalkWith(handler);
             KeySegment keySegment = new KeySegment(keys, edmType, navigationSource);
-            ODataPath newPath = handler.FirstPart;
-            newPath.Add(keySegment);
-            AppendLastSegment(handler, newPath);
+            return path.AddKeySegment(keySegment);
+        }
+
+        internal static ODataPath AddKeySegment(this ODataPath path, KeySegment keySegment)
+        {
+            if (keySegment == null)
+            {
+                throw new ArgumentNullException(nameof(keySegment));
+            }
+
+            List<ODataPathSegment> newSegments = new List<ODataPathSegment>(path.Count + 1);
+            // if the path ends with one or more consecutive TypeSegments we'll
+            // insert the key segment before that sequence of ending type segments.
+            int splitIndex = path.Count - 1;
+            while (splitIndex > -1 && path[splitIndex] is TypeSegment)
+            {
+                splitIndex--;
+            }
             
-            return newPath;
-        }
+            for (int i = 0; i <= splitIndex; i++)
+            {
+                newSegments.Add(path[i]);
+            }
 
-        private static void AppendLastSegment(SplitEndingSegmentOfTypeHandler<TypeSegment> handler, ODataPath newPath)
-        {
-           newPath.AddRange(handler.LastPart);
-        }
+            newSegments.Add(keySegment);
 
-        /// <summary>
-        /// Remove the key segment in the end of ODataPath, the method does not modify current ODataPath instance,
-        /// it returns a new ODataPath without ending type segment.
-        /// If last segment is type cast, the key before type cast segment would be removed.
-        /// </summary>
-        /// <param name="path">Path to perform the computation on.</param>
-        /// <returns>The ODataPath without key segment removed</returns>
-        public static ODataPath TrimEndingKeySegment(this ODataPath path)
-        {
-            var typeHandler = new SplitEndingSegmentOfTypeHandler<TypeSegment>();
-            var keyHandler = new SplitEndingSegmentOfTypeHandler<KeySegment>();
-            path.WalkWith(typeHandler);
-            typeHandler.FirstPart.WalkWith(keyHandler);
-            ODataPath newPath = keyHandler.FirstPart;
-            AppendLastSegment(typeHandler, newPath);
-            return newPath;
-        }
+            for (int i = splitIndex + 1; i < path.Count; i++)
+            {
+                newSegments.Add(path[i]);
+            }
 
-        /// <summary>
-        /// Remove the type-cast segment in the end of ODataPath, the method does not modify current ODataPath instance,
-        /// it returns a new ODataPath without ending type segment.
-        /// </summary>
-        /// <param name="path">Path to perform the computation on.</param>
-        /// <returns>The ODataPath without type-cast in the end</returns>
-        public static ODataPath TrimEndingTypeSegment(this ODataPath path)
-        {
-            var handler = new SplitEndingSegmentOfTypeHandler<TypeSegment>();
-            path.WalkWith(handler);
-            return handler.FirstPart;
+            // Since we created the segments list here and we're sure it's not going to be
+            // used anywhere else, it's safe and much more efficient to tell ODataPath
+            // to take it as is without making an internal copy.
+            return ODataPath.CreateFromListWithoutCopying(newSegments, verifySegmentsNotNull: false);
         }
 
         /// <summary>
@@ -156,7 +317,7 @@ namespace Microsoft.OData.UriParser
         /// </summary>
         /// <param name="path">Path to perform the computation on.</param>
         /// <returns>True if the the ODataPath targets at an individual property. False otherwise.</returns>
-        public static bool IsIndividualProperty(this ODataPath path)
+        internal static bool IsIndividualProperty(this ODataPath path)
         {
             ODataPathSegment lastNonTypeCastSegment = path.TrimEndingTypeSegment().LastSegment;
             return lastNonTypeCastSegment is PropertySegment || lastNonTypeCastSegment is DynamicPathSegment;
@@ -167,7 +328,7 @@ namespace Microsoft.OData.UriParser
         /// </summary>
         /// <param name="path">Path to perform the computation on.</param>
         /// <returns>True if the the ODataPath targets at an unknown segment. False otherwise.</returns>
-        public static bool IsUndeclared(this ODataPath path)
+        internal static bool IsUndeclared(this ODataPath path)
         {
             ODataPathSegment lastNonTypeCastSegment = path.TrimEndingTypeSegment().LastSegment;
             return lastNonTypeCastSegment is DynamicPathSegment;
@@ -179,7 +340,8 @@ namespace Microsoft.OData.UriParser
         /// </summary>
         /// <param name="path">Path to perform the computation on.</param>
         /// <returns>The string representation of the Context Url path.</returns>
-        public static string ToContextUrlPathString(this ODataPath path)
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Maintainability", "CA1055:UriReturnValuesShouldNotBeStrings", Justification = "Extension method aims to return a string.")]
+        internal static string ToContextUrlPathString(this ODataPath path)
         {
             StringBuilder pathString = new StringBuilder();
             PathSegmentToContextUrlPathTranslator pathTranslator = PathSegmentToContextUrlPathTranslator.DefaultInstance;
@@ -261,25 +423,13 @@ namespace Microsoft.OData.UriParser
         }
 
         /// <summary>
-        /// Get the string representation of <see cref="ODataPath"/>.
-        /// mainly translate Query Url path.
-        /// </summary>
-        /// <param name="path">Path to perform the computation on.</param>
-        /// <param name="urlKeyDelimiter">Mark whether key is segment</param>
-        /// <returns>The string representation of the Query Url path.</returns>
-        public static string ToResourcePathString(this ODataPath path, ODataUrlKeyDelimiter urlKeyDelimiter)
-        {
-            return string.Concat(path.WalkWith(new PathSegmentToResourcePathTranslator(urlKeyDelimiter)).ToArray()).TrimStart('/');
-        }
-
-        /// <summary>
         /// Translate an ODataExpandPath into an ODataSelectPath
         /// Depending on the constructor of ODataSelectPath to validate that we aren't adding any
         /// segments that are illegal for a select.
         /// </summary>
         /// <param name="path">the ODataExpandPath to translate</param>
         /// <returns>A new ODataSelect path with the same segments as the expand path.</returns>
-        public static ODataSelectPath ToSelectPath(this ODataExpandPath path)
+        internal static ODataSelectPath ToSelectPath(this ODataExpandPath path)
         {
             return new ODataSelectPath(path);
         }
@@ -291,7 +441,7 @@ namespace Microsoft.OData.UriParser
         /// </summary>
         /// <param name="path">the ODataSelectPath to translate</param>
         /// <returns>A new ODataExpand path with the same segments as the select path.</returns>
-        public static ODataExpandPath ToExpandPath(this ODataSelectPath path)
+        internal static ODataExpandPath ToExpandPath(this ODataSelectPath path)
         {
             return new ODataExpandPath(path);
         }

@@ -7,6 +7,7 @@
 namespace Microsoft.OData
 {
     #region Namespaces
+
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -396,7 +397,7 @@ namespace Microsoft.OData
         public override sealed Task<bool> ReadAsync()
         {
             this.VerifyCanRead(false);
-            return this.ReadAsynchronously().FollowOnFaultWith(t => this.EnterScope(new Scope(ODataReaderState.Exception, null, null)));
+            return this.InterceptExceptionAsync(thisParam => thisParam.ReadAsynchronously());
         }
 
         /// <summary>
@@ -458,7 +459,9 @@ namespace Microsoft.OData
         /// <returns>A task for method called when a stream is requested.</returns>
         Task IODataStreamListener.StreamRequestedAsync()
         {
-            return TaskUtils.GetTaskForSynchronousOperation(() => ((IODataStreamListener)this).StreamRequested());
+            return TaskUtils.GetTaskForSynchronousOperation(
+                (thisParam) => ((IODataStreamListener)thisParam).StreamRequested(),
+                this);
         }
 
         /// <summary>
@@ -479,7 +482,9 @@ namespace Microsoft.OData
         /// <returns>A task that represents the asynchronous operation.</returns>
         Task IODataStreamListener.StreamDisposedAsync()
         {
-            throw new NotImplementedException();
+            return TaskUtils.GetTaskForSynchronousOperation(
+                (thisParam) => ((IODataStreamListener)thisParam).StreamDisposed(),
+                this);
         }
 
         /// <summary>
@@ -934,6 +939,33 @@ namespace Microsoft.OData
             try
             {
                 return action();
+            }
+            catch (Exception e)
+            {
+                if (ExceptionUtils.IsCatchableExceptionType(e))
+                {
+                    this.EnterScope(new Scope(ODataReaderState.Exception, null, null));
+                }
+
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Catch any exception thrown by the action passed in; in the exception case move the reader into
+        /// state ExceptionThrown and then rethrow the exception.
+        /// </summary>
+        /// <typeparam name="T">The type returned from the <paramref name="action"/> to execute.</typeparam>
+        /// <param name="action">The action to execute.</param>
+        /// <returns>
+        /// A task that represents the asynchronous operation.
+        /// The value of the TResult parameter contains the result of executing the <paramref name="action"/>.
+        /// </returns>
+        private async Task<T> InterceptExceptionAsync<T>(Func<ODataReaderCore, Task<T>> action)
+        {
+            try
+            {
+                return await action(this).ConfigureAwait(false);
             }
             catch (Exception e)
             {

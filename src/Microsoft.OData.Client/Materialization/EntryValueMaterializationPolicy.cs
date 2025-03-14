@@ -11,7 +11,6 @@ namespace Microsoft.OData.Client.Materialization
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.Linq;
-    using System.Reflection;
     using Microsoft.OData;
     using Microsoft.OData.Client;
     using Microsoft.OData.Client.Metadata;
@@ -30,23 +29,23 @@ namespace Microsoft.OData.Client.Materialization
         /// <summary>
         /// Initializes a new instance of the <see cref="EntryValueMaterializationPolicy" /> class.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="materializerContext">The context.</param>
         /// <param name="entityTrackingAdapter">The entity tracking adapter.</param>
         /// <param name="lazyPrimitivePropertyConverter">The lazy primitive property converter.</param>
         /// <param name="nextLinkTable">The next link table.</param>
         internal EntryValueMaterializationPolicy(
-            IODataMaterializerContext context,
+            IODataMaterializerContext materializerContext,
             EntityTrackingAdapter entityTrackingAdapter,
             DSClient.SimpleLazy<PrimitivePropertyConverter> lazyPrimitivePropertyConverter,
             Dictionary<IEnumerable, DataServiceQueryContinuation> nextLinkTable)
-            : base(context, lazyPrimitivePropertyConverter)
+            : base(materializerContext, lazyPrimitivePropertyConverter)
         {
             this.nextLinkTable = nextLinkTable;
             this.EntityTrackingAdapter = entityTrackingAdapter;
         }
 
         /// <summary>
-        /// Gets the Entity Materializer Context
+        /// Gets the Entity ObjectMaterializer Context
         /// </summary>
         internal EntityTrackingAdapter EntityTrackingAdapter { get; private set; }
 
@@ -63,13 +62,13 @@ namespace Microsoft.OData.Client.Materialization
 
         /// <summary>
         /// Validates the specified <paramref name="property"/> matches
-        /// the parsed <paramref name="atomProperty"/>.
+        /// the parsed <paramref name="entryProperty"/>.
         /// </summary>
         /// <param name="property">Property as understood by the type system.</param>
-        /// <param name="atomProperty">Property as parsed.</param>
-        internal static void ValidatePropertyMatch(ClientPropertyAnnotation property, ODataProperty atomProperty)
+        /// <param name="entryProperty">Property as parsed.</param>
+        internal static void ValidatePropertyMatch(ClientPropertyAnnotation property, ODataProperty entryProperty)
         {
-            ValidatePropertyMatch(property, atomProperty, null, false /*performEntityCheck*/);
+            ValidatePropertyMatch(property, entryProperty, null, false /*performEntityCheck*/);
         }
 
         /// <summary>
@@ -95,7 +94,7 @@ namespace Microsoft.OData.Client.Materialization
                     // and in the client, the property is not a collection property.
                     if (!property.IsResourceSet)
                     {
-                        throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchAtomLinkFeedPropertyNotCollection(property.PropertyName));
+                        throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchEntryLinkFeedPropertyNotCollection(property.PropertyName));
                     }
 
                     propertyType = property.ResourceSetItemType;
@@ -104,7 +103,7 @@ namespace Microsoft.OData.Client.Materialization
                 {
                     if (property.IsResourceSet)
                     {
-                        throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchAtomLinkEntryPropertyIsCollection(property.PropertyName));
+                        throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchEntryLinkEntryPropertyIsCollection(property.PropertyName));
                     }
 
                     propertyType = property.PropertyType;
@@ -117,7 +116,7 @@ namespace Microsoft.OData.Client.Materialization
             {
                 if (!ClientTypeUtil.TypeIsStructured(propertyType, model))
                 {
-                    throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidNonEntityType(propertyType.ToString()));
+                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidNonEntityType(propertyType.ToString()));
                 }
             }
 
@@ -126,23 +125,23 @@ namespace Microsoft.OData.Client.Materialization
 
         /// <summary>
         /// Validates the specified <paramref name="property"/> matches
-        /// the parsed <paramref name="atomProperty"/>.
+        /// the parsed <paramref name="entryProperty"/>.
         /// </summary>
         /// <param name="property">Property as understood by the type system.</param>
-        /// <param name="atomProperty">Property as parsed.</param>
+        /// <param name="entryProperty">Property as parsed.</param>
         /// <param name="model">Client model.</param>
         /// <param name="performEntityCheck">whether to do the entity check or not.</param>
-        internal static void ValidatePropertyMatch(ClientPropertyAnnotation property, ODataProperty atomProperty, ClientEdmModel model, bool performEntityCheck)
+        internal static void ValidatePropertyMatch(ClientPropertyAnnotation property, ODataProperty entryProperty, ClientEdmModel model, bool performEntityCheck)
         {
             Debug.Assert(property != null, "property != null");
-            Debug.Assert(atomProperty != null, "atomProperty != null");
+            Debug.Assert(entryProperty != null, "entryProperty != null");
 
-            ODataResourceSet feed = atomProperty.Value as ODataResourceSet;
-            ODataResource entry = atomProperty.Value as ODataResource;
+            ODataResourceSet feed = entryProperty.Value as ODataResourceSet;
+            ODataResource entry = entryProperty.Value as ODataResource;
 
             if (property.IsKnownType && (feed != null || entry != null))
             {
-                throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchAtomLinkLocalSimple);
+                throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchEntryLinkLocalSimple);
             }
 
             Type propertyType = null;
@@ -152,7 +151,7 @@ namespace Microsoft.OData.Client.Materialization
                 // and in the client, the property is not a collection property.
                 if (!property.IsEntityCollection)
                 {
-                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchAtomLinkFeedPropertyNotCollection(property.PropertyName));
+                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchEntryLinkFeedPropertyNotCollection(property.PropertyName));
                 }
 
                 propertyType = property.EntityCollectionItemType;
@@ -162,7 +161,7 @@ namespace Microsoft.OData.Client.Materialization
             {
                 if (property.IsEntityCollection)
                 {
-                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchAtomLinkEntryPropertyIsCollection(property.PropertyName));
+                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Deserialize_MismatchEntryLinkEntryPropertyIsCollection(property.PropertyName));
                 }
 
                 propertyType = property.PropertyType;
@@ -174,7 +173,7 @@ namespace Microsoft.OData.Client.Materialization
             {
                 if (!ClientTypeUtil.TypeIsEntity(propertyType, model))
                 {
-                    throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidNonEntityType(propertyType.ToString()));
+                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidNonEntityType(propertyType.ToString()));
                 }
             }
         }
@@ -352,7 +351,7 @@ namespace Microsoft.OData.Client.Materialization
         {
             if (!collectionElementType.IsAssignableFrom(itemType))
             {
-                string message = DSClient.Strings.AtomMaterializer_EntryIntoCollectionMismatch(
+                string message = DSClient.Strings.Materializer_EntryIntoCollectionMismatch(
                     itemType.FullName,
                     collectionElementType.FullName);
 
@@ -534,11 +533,11 @@ namespace Microsoft.OData.Client.Materialization
             ClientEdmModel edmModel = this.MaterializerContext.Model;
             ClientTypeAnnotation collectionType = edmModel.GetClientTypeAnnotation(edmModel.GetOrCreateEdmType(property.ResourceSetItemType));
 
-            IEnumerable<ODataResource> entries = MaterializerFeed.GetFeed(feed).Entries;
+            IEnumerable<ODataResource> entries = MaterializerFeed.GetFeed(feed, this.MaterializerContext).Entries;
 
             foreach (ODataResource feedEntry in entries)
             {
-                this.Materialize(MaterializerEntry.GetEntry(feedEntry), collectionType.ElementType, includeLinks);
+                this.Materialize(MaterializerEntry.GetEntry(feedEntry, this.MaterializerContext), collectionType.ElementType, includeLinks);
             }
 
             ProjectionPlan continuationPlan = includeLinks ?
@@ -548,7 +547,7 @@ namespace Microsoft.OData.Client.Materialization
             this.ApplyItemsToCollection(
                 entry,
                 property,
-                entries.Select(e => MaterializerEntry.GetEntry(e).ResolvedObject),
+                entries.Select(e => MaterializerEntry.GetEntry(e, this.MaterializerContext).ResolvedObject),
                 feed.NextPageLink,
                 continuationPlan,
                 false);
@@ -570,7 +569,7 @@ namespace Microsoft.OData.Client.Materialization
             // This is a breaking change from V1/V2 where we allowed materialization of entities into non-entities and vice versa
             if (!actualType.IsStructuredType)
             {
-                throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidNonEntityType(actualType.ElementTypeName));
+                throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidNonEntityType(actualType.ElementTypeName));
             }
 
             // Note that even if ShouldUpdateFromPayload is false, we will still be creating
@@ -591,7 +590,7 @@ namespace Microsoft.OData.Client.Materialization
 
                 foreach (ODataNestedResourceInfo link in entry.NestedResourceInfos)
                 {
-                    MaterializerNavigationLink linkState = MaterializerNavigationLink.GetLink(link);
+                    MaterializerNestedEntry linkState = MaterializerNestedEntry.GetNestedEntry(link, this.MaterializerContext);
 
                     if (linkState == null)
                     {
@@ -611,7 +610,7 @@ namespace Microsoft.OData.Client.Materialization
                     }
 
                     // includeLinks is for Navigation property, so we should handle complex property when includeLinks equals false;
-                    if (!includeLinks && (prop.IsEntityCollection || prop.EntityCollectionItemType != null))
+                    if (!includeLinks && prop.EdmProperty is IEdmNavigationProperty)
                     {
                         continue;
                     }
@@ -649,19 +648,21 @@ namespace Microsoft.OData.Client.Materialization
                 }
             }
 
-            foreach (var e in entry.Properties)
+            foreach (ODataPropertyInfo propertyInfo in entry.Properties)
             {
-                if (e.Value is ODataStreamReferenceValue)
+                // Property without value or stream property
+                if (propertyInfo is not ODataProperty odataProperty
+                    || odataProperty.Value is ODataStreamReferenceValue)
                 {
                     continue;
                 }
 
-                var prop = actualType.GetProperty(e.Name, this.MaterializerContext.UndeclaredPropertyBehavior);
+                var prop = actualType.GetProperty(odataProperty.Name, this.MaterializerContext.UndeclaredPropertyBehavior);
                 if (prop == null)
                 {
                     if (entry.ShouldUpdateFromPayload)
                     {
-                        this.MaterializeDynamicProperty(e, entry.ResolvedObject);
+                        this.MaterializeDynamicProperty(odataProperty, entry.ResolvedObject);
                     }
 
                     continue;
@@ -669,9 +670,9 @@ namespace Microsoft.OData.Client.Materialization
 
                 if (entry.ShouldUpdateFromPayload)
                 {
-                    ValidatePropertyMatch(prop, e, this.MaterializerContext.Model, true /*performEntityCheck*/);
+                    ValidatePropertyMatch(prop, odataProperty, this.MaterializerContext.Model, true /*performEntityCheck*/);
 
-                    this.ApplyDataValue(actualType, e, entry.ResolvedObject);
+                    this.ApplyDataValue(actualType, odataProperty, entry.ResolvedObject);
                 }
             }
 
@@ -682,7 +683,7 @@ namespace Microsoft.OData.Client.Materialization
 
             if (entry.ResolvedObject is IBaseEntityType entity)
             {
-                entity.Context = this.EntityTrackingAdapter.Context;
+                entity.DataServiceContext = this.EntityTrackingAdapter.Context;
 
                 if (!entry.IsTracking)
                 {
@@ -722,7 +723,8 @@ namespace Microsoft.OData.Client.Materialization
                 return;
             }
 
-            MaterializerNavigationLink linkState = MaterializerNavigationLink.GetLink(link);
+            MaterializerNestedEntry linkState = MaterializerNestedEntry.GetNestedEntry(link, this.MaterializerContext);
+
             if (linkState == null || (linkState.Entry == null && linkState.Feed == null))
             {
                 return;
@@ -754,10 +756,10 @@ namespace Microsoft.OData.Client.Materialization
                     Type collectionType = typeof(System.Collections.ObjectModel.Collection<>).MakeGenericType(new Type[] { collectionItemType });
                     IList collection = (IList)Util.ActivatorCreateInstance(collectionType);
 
-                    IEnumerable<ODataResource> feedEntries = MaterializerFeed.GetFeed(linkState.Feed).Entries;
+                    IEnumerable<ODataResource> feedEntries = MaterializerFeed.GetFeed(linkState.Feed, this.MaterializerContext).Entries;
                     foreach (ODataResource feedEntry in feedEntries)
                     {
-                        MaterializerEntry linkEntry = MaterializerEntry.GetEntry(feedEntry);
+                        MaterializerEntry linkEntry = MaterializerEntry.GetEntry(feedEntry, this.MaterializerContext);
                         this.Materialize(linkEntry, collectionItemType, false /*includeLinks*/);
                         collection.Add(linkEntry.ResolvedObject);
                     }

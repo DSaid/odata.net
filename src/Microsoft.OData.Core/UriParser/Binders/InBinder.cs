@@ -27,12 +27,19 @@ namespace Microsoft.OData.UriParser
         private readonly Func<QueryToken, QueryNode> bindMethod;
 
         /// <summary>
+        /// Resolver for parsing
+        /// </summary>
+        private readonly ODataUriResolver resolver;
+
+        /// <summary>
         /// Constructs a InBinder with the given method to be used binding the parent token if needed.
         /// </summary>
         /// <param name="bindMethod">Method to use for binding the parent token, if needed.</param>
-        internal InBinder(Func<QueryToken, QueryNode> bindMethod)
+        /// <param name="resolver">Resolver for parsing.</param>
+        internal InBinder(Func<QueryToken, QueryNode> bindMethod, ODataUriResolver resolver)
         {
             this.bindMethod = bindMethod;
+            this.resolver = resolver;
         }
 
         /// <summary>
@@ -46,8 +53,26 @@ namespace Microsoft.OData.UriParser
             ExceptionUtils.CheckArgumentNotNull(inToken, "inToken");
 
             SingleValueNode left = this.GetSingleValueOperandFromToken(inToken.Left);
-            CollectionNode right = this.GetCollectionOperandFromToken(
-                inToken.Right, new EdmCollectionTypeReference(new EdmCollectionType(left.TypeReference)), state.Model);
+            CollectionNode right = null;
+            if (left.TypeReference != null)
+            {
+                right = this.GetCollectionOperandFromToken(
+                    inToken.Right, new EdmCollectionTypeReference(new EdmCollectionType(left.TypeReference)), state.Model);
+            }
+            else 
+            {
+                right = this.GetCollectionOperandFromToken(
+                    inToken.Right, new EdmCollectionTypeReference(new EdmCollectionType(EdmCoreModel.Instance.GetUntyped())), state.Model);
+            }
+
+            // If the left operand is either an integral or a string type and the right operand is a collection of enums,
+            // Calls the MetadataBindingUtils.ConvertToTypeIfNeeded() method to convert the left operand to the same enum type as the right operand.
+            if ((!(right is CollectionConstantNode) && right.ItemType.IsEnum()) && (left.TypeReference != null && (left.TypeReference.IsString() || left.TypeReference.IsIntegral())))
+            {
+                left = MetadataBindingUtils.ConvertToTypeIfNeeded(left, right.ItemType);
+            }
+
+            MetadataBindingUtils.VerifyCollectionNode(right, this.resolver.EnableCaseInsensitive);
 
             return new InNode(left, right);
         }
@@ -81,25 +106,30 @@ namespace Microsoft.OData.UriParser
             LiteralToken literalToken = queryToken as LiteralToken;
             if (literalToken != null)
             {
-                string originalLiteralText = literalToken.OriginalText;
-
                 // Parentheses-based collections are not standard JSON but bracket-based ones are.
                 // Temporarily switch our collection to bracket-based so that the JSON reader will
                 // correctly parse the collection. Then pass the original literal text to the token.
-                string bracketLiteralText = originalLiteralText;
-                if (bracketLiteralText[0] == '(')
-                {
-                    Debug.Assert(bracketLiteralText[bracketLiteralText.Length - 1] == ')',
-                        "Collection with opening '(' should have corresponding ')'");
+                string bracketLiteralText = literalToken.OriginalText;
 
-                    StringBuilder replacedText = new StringBuilder(bracketLiteralText);
-                    replacedText[0] = '[';
-                    replacedText[replacedText.Length - 1] = ']';
-                    bracketLiteralText = replacedText.ToString();
+                if (bracketLiteralText[0] == '(' || bracketLiteralText[0] == '[')
+                {
+                    Debug.Assert((bracketLiteralText[0] == '(' && bracketLiteralText[^1] == ')') || (bracketLiteralText[0] == '[' && bracketLiteralText[^1] == ']'),
+                        $"Collection with opening '{bracketLiteralText[0]}' should have corresponding '{(bracketLiteralText[0] == '(' ? ')' : ']')}'");
+
+                    if (bracketLiteralText[0] == '(' && bracketLiteralText[^1] == ')')
+                    {
+                        bracketLiteralText = string.Create(bracketLiteralText.Length, bracketLiteralText, (span, state) =>
+                        {
+                            state.AsSpan().CopyTo(span);
+                            span[0] = '[';
+                            span[^1] = ']';
+                        });
+                    }
 
                     Debug.Assert(expectedType.IsCollection());
                     string expectedTypeFullName = expectedType.Definition.AsElementType().FullTypeName();
-                    if (expectedTypeFullName.Equals("Edm.String", StringComparison.Ordinal))
+
+                    if (expectedTypeFullName.Equals("Edm.String", StringComparison.Ordinal) || expectedTypeFullName.Equals("Edm.Untyped", StringComparison.Ordinal))
                     {
                         // For collection of strings, need to convert single-quoted string to double-quoted string,
                         // and also, per ABNF, a single quote within a string literal is "encoded" as two consecutive single quotes in either
@@ -129,12 +159,20 @@ namespace Microsoft.OData.UriParser
                 }
 
                 object collection = ODataUriConversionUtils.ConvertFromCollectionValue(bracketLiteralText, model, expectedType);
-                LiteralToken collectionLiteralToken = new LiteralToken(collection, originalLiteralText, expectedType);
+                LiteralToken collectionLiteralToken = new LiteralToken(collection, literalToken.OriginalText, expectedType);
                 operand = this.bindMethod(collectionLiteralToken) as CollectionConstantNode;
             }
             else
             {
-                operand = this.bindMethod(queryToken) as CollectionNode;
+                var node = this.bindMethod(queryToken);
+                if (node is SingleValueOpenPropertyAccessNode openNode)
+                {
+                    operand = new CollectionOpenPropertyAccessNode(openNode.Source, openNode.Name, expectedType as IEdmCollectionTypeReference);
+                }
+                else
+                {
+                    operand = node as CollectionNode;
+                }
             }
 
             if (operand == null)
@@ -289,9 +327,11 @@ namespace Microsoft.OData.UriParser
                         {
                             if(k > 2 && input[k - 2] == '\'')
                             {
-                                // Ignore we have 3 single quotes e.g 'xyz'''
-                                // It means we need to escape the double quotes to return the result "xyz'"
-                                continue;
+                                // We have 3 single quotes e.g 'ghi'''
+                                // It means we need to unescape the double single quotes
+                                // and escape double quote to return the result "ghi'" and process next items
+                                sb.Append('"');
+                                return k;
                             }
                             // We append \"\" so as to return "\"\"" instead of "".
                             // This is to avoid passing an empty string to the ConstantNode.

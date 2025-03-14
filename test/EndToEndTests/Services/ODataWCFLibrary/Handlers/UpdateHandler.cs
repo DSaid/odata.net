@@ -297,7 +297,8 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                                             if (!isUpsert && Utility.IsReadOnly(propertyInfo)) continue;
                                         }
 
-                                        this.DataSource.UpdateProvider.Update(newInstance, property.Name, property.Value);
+                                        if (!(property is ODataProperty)) continue;
+                                        this.DataSource.UpdateProvider.Update(newInstance, property.Name, ((ODataProperty)property).Value);
                                     }
 
                                     var boundNavPropAnnotation = odataItemStack.Pop().GetAnnotation<BoundNavigationPropertyAnnotation>();
@@ -374,12 +375,12 @@ namespace Microsoft.Test.OData.Services.ODataWCFService.Handlers
                                     var propertyInstance = property.GetValue(parent);
                                     parentInstances.Push(propertyInstance);
 
-                                    IEdmNavigationProperty navigationProperty = currentTargetEntitySet == null ? null : currentTargetEntitySet.EntityType().FindProperty(nestedResourceInfo.Name) as IEdmNavigationProperty;
+                                    IEdmNavigationProperty navigationProperty = currentTargetEntitySet == null ? null : currentTargetEntitySet.EntityType.FindProperty(nestedResourceInfo.Name) as IEdmNavigationProperty;
 
                                     // Current model implementation doesn't expose associations otherwise this would be much cleaner.
                                     if (navigationProperty != null)
                                     {
-                                        currentTargetEntitySet = this.DataSource.Model.EntityContainer.EntitySets().Single(s => s.EntityType() == navigationProperty.Type.Definition);
+                                        currentTargetEntitySet = this.DataSource.Model.EntityContainer.EntitySets().Single(s => s.EntityType == navigationProperty.Type.Definition);
                                     }
                                     else
                                     {

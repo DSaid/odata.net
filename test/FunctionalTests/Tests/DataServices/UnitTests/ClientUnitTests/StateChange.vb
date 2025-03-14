@@ -16,13 +16,14 @@ Imports Microsoft.VisualStudio.TestTools.UnitTesting
 Imports AstoriaUnitTests.Data
 Imports AstoriaUnitTests.Stubs
 Imports Microsoft.Test.ModuleCore
+Imports System.Net.Http
 
 Partial Public Class ClientModule
     ' For comment out test cases, see github: https://github.com/OData/odata.net/issues/887
     <TestClass()> Public Class StateChange
 
         Private Shared web As TestWebRequest = Nothing
-        Private sentRequests As New List(Of HttpWebRequest)()
+        Private sentRequests As New List(Of HttpRequestMessage)()
         Private ctx As NorthwindSimpleModel.NorthwindContext = Nothing
 
 #Region "Initialize DataService and create new context for each text"
@@ -51,9 +52,9 @@ Partial Public Class ClientModule
         End Sub
 
         Private Sub SendingRequestListenHttpMethod(ByVal sender As Object, ByVal args As SendingRequest2EventArgs)
-            Dim httpRequestMessage = TryCast(args.RequestMessage, HttpWebRequestMessage)
+            Dim httpRequestMessage = TryCast(args.RequestMessage, HttpClientRequestMessage)
             If httpRequestMessage IsNot Nothing Then
-                Dim httpRequest = httpRequestMessage.HttpWebRequest
+                Dim httpRequest = httpRequestMessage.HttpRequestMessage
                 sentRequests.Add(httpRequest)
             End If
         End Sub
@@ -732,7 +733,7 @@ Partial Public Class ClientModule
         End Sub
 
         Private Sub ValidateRequestMethods(ByVal ParamArray methods As String())
-            Dim x = String.Concat((From m In Me.sentRequests Select m.Method).ToArray())
+            Dim x = String.Concat((From m In Me.sentRequests Select m.Method.Method).ToArray())
             Assert.AreEqual(methods.Length, Me.sentRequests.Count, "SendingRequest count {0}", x)
             For i As Int32 = 0 To methods.Length - 1
                 Assert.AreEqual(methods(i), Me.sentRequests.Item(i).Method, "SendingRequest[{0}].Method", i)

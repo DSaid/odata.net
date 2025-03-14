@@ -10,12 +10,11 @@ namespace Microsoft.OData.Client.Materialization
     using System.Collections;
     using System.Collections.Generic;
     using System.Diagnostics;
-    using System.Diagnostics.CodeAnalysis;
     using System.Linq;
+    using DSClient = Microsoft.OData.Client;
     using Microsoft.OData;
     using Microsoft.OData.Client;
     using Microsoft.OData.Edm;
-    using DSClient = Microsoft.OData.Client;
 
     /// <summary>
     /// Use this class to materialize objects provided from an <see cref="ODataMessageReader"/>.
@@ -46,6 +45,9 @@ namespace Microsoft.OData.Client.Materialization
         /// <summary>The converter to use when assigning values of primitive properties. </summary>
         private DSClient.SimpleLazy<PrimitivePropertyConverter> lazyPrimitivePropertyConverter;
 
+        /// <summary>Whether to include navigation properties when materializing an entry.</summary>
+        private bool includeLinks;
+
         /// <summary>
         /// Initializes a new instance of the <see cref="ODataMaterializer" /> class.
         /// </summary>
@@ -65,6 +67,7 @@ namespace Microsoft.OData.Client.Materialization
             this.collectionValueMaterializationPolicy.InstanceAnnotationMaterializationPolicy = this.instanceAnnotationMaterializationPolicy;
             this.instanceAnnotationMaterializationPolicy.CollectionValueMaterializationPolicy = this.collectionValueMaterializationPolicy;
             this.instanceAnnotationMaterializationPolicy.EnumValueMaterializationPolicy = this.enumValueMaterializationPolicy;
+            this.includeLinks = this.MaterializerContext.IncludeLinks;
         }
 
         /// <summary>Current value being materialized; possibly null.</summary>
@@ -77,6 +80,9 @@ namespace Microsoft.OData.Client.Materialization
 
         /// <summary>Feed being materialized; possibly null.</summary>
         internal abstract ODataResourceSet CurrentFeed { get; }
+
+        /// <summary>OData delta resource set being materialized; possibly null.</summary>
+        internal abstract ODataDeltaResourceSet CurrentDeltaFeed { get; }
 
         /// <summary>Entry being materialized; possibly null.</summary>
         internal abstract ODataResource CurrentEntry { get; }
@@ -96,6 +102,14 @@ namespace Microsoft.OData.Client.Materialization
         internal virtual bool IsCountable
         {
             get { return false; }
+        }
+
+        /// <summary>
+        /// Returns true if we should include navigation properties when materializing an entry.
+        /// </summary>
+        internal bool IncludeLinks
+        {
+            get { return includeLinks; }
         }
 
         /// <summary>
@@ -184,6 +198,7 @@ namespace Microsoft.OData.Client.Materialization
         /// <param name="queryComponents">The query components for the request.</param>
         /// <param name="plan">The projection plan.</param>
         /// <param name="payloadKind">expected payload kind.</param>
+        /// <param name="materializerCache">The materializer cache.</param>
         /// <returns>A materializer specialized for the given response.</returns>
         public static ODataMaterializer CreateMaterializerForMessage(
             IODataResponseMessage responseMessage,
@@ -191,7 +206,8 @@ namespace Microsoft.OData.Client.Materialization
             Type materializerType,
             QueryComponents queryComponents,
             ProjectionPlan plan,
-            ODataPayloadKind payloadKind)
+            ODataPayloadKind payloadKind,
+            MaterializerCache materializerCache)
         {
             ODataMessageReader messageReader = CreateODataMessageReader(responseMessage, responseInfo, ref payloadKind);
 
@@ -200,7 +216,7 @@ namespace Microsoft.OData.Client.Materialization
 
             try
             {
-                ODataMaterializerContext materializerContext = new ODataMaterializerContext(responseInfo);
+                ODataMaterializerContext materializerContext = new ODataMaterializerContext(responseInfo, materializerCache);
 
                 // Since in V1/V2, astoria client allowed Execute<object> and depended on the typeresolver or the wire type name
                 // to get the clr type to materialize. Hence if we see the materializer type as object, we should set the edmtype
@@ -228,11 +244,11 @@ namespace Microsoft.OData.Client.Materialization
                     // Hence we need to explicitly check for System.Object to allow this
                     if (edmType != null && !edmType.TypeKind.IsStructured())
                     {
-                        throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidNonEntityType(materializerType.FullName));
+                        throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidNonEntityType(materializerType.FullName));
                     }
 
                     ODataReaderWrapper reader = ODataReaderWrapper.Create(messageReader, payloadKind, edmType, responseInfo.ResponsePipeline);
-                    EntityTrackingAdapter entityTrackingAdapter = new EntityTrackingAdapter(responseInfo.EntityTracker, responseInfo.MergeOption, responseInfo.Model, responseInfo.Context);
+                    EntityTrackingAdapter entityTrackingAdapter = new EntityTrackingAdapter(responseInfo.EntityTracker, responseInfo.MergeOption, responseInfo.Model, responseInfo.Context, materializerContext);
                     LoadPropertyResponseInfo loadPropertyResponseInfo = responseInfo as LoadPropertyResponseInfo;
 
                     if (loadPropertyResponseInfo != null)
@@ -274,7 +290,7 @@ namespace Microsoft.OData.Client.Materialization
                             // Top level properties cannot be of entity type.
                             if (edmType != null && (edmType.TypeKind == EdmTypeKind.Entity || edmType.TypeKind == EdmTypeKind.Complex))
                             {
-                                throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidEntityType(materializerType.FullName));
+                                throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidEntityType(materializerType.FullName));
                             }
 
                             result = new ODataPropertyMaterializer(messageReader, materializerContext, materializerType, queryComponents.SingleResult);
@@ -288,7 +304,7 @@ namespace Microsoft.OData.Client.Materialization
                             var odataError = messageReader.ReadError();
                             throw new ODataErrorException(odataError.Message, odataError);
                         default:
-                            throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidResponsePayload(XmlConstants.DataWebNamespace));
+                            throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidResponsePayload(XmlConstants.DataWebNamespace));
                     }
                 }
 
@@ -348,6 +364,13 @@ namespace Microsoft.OData.Client.Materialization
         {
             ODataMessageReaderSettings settings = responseInfo.ReadHelper.CreateSettings();
 
+            // We use v4.01 to read all payloads. This is backwards compatible with v4.0
+            settings.Version = ODataVersion.V401;
+            settings.ShouldIncludeAnnotation = (annotation) =>
+            {
+                return true;
+            };
+
             ODataMessageReader odataMessageReader = responseInfo.ReadHelper.CreateReader(responseMessage, settings);
 
             if (payloadKind == ODataPayloadKind.Unsupported)
@@ -356,7 +379,7 @@ namespace Microsoft.OData.Client.Materialization
 
                 if (payloadKinds.Count == 0)
                 {
-                    throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidResponsePayload(XmlConstants.DataWebNamespace));
+                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidResponsePayload(XmlConstants.DataWebNamespace));
                 }
 
                 // Pick the first payload kind detected by ODataLib and use that to parse the exception.
@@ -371,7 +394,7 @@ namespace Microsoft.OData.Client.Materialization
 
                 if (detectionResult.Format != ODataFormat.Json && detectionResult.Format != ODataFormat.RawValue)
                 {
-                    throw DSClient.Error.InvalidOperation(DSClient.Strings.AtomMaterializer_InvalidContentTypeEncountered(responseMessage.GetHeader(XmlConstants.HttpContentType)));
+                    throw DSClient.Error.InvalidOperation(DSClient.Strings.Materializer_InvalidContentTypeEncountered(responseMessage.GetHeader(XmlConstants.HttpContentType)));
                 }
 
                 payloadKind = detectionResult.PayloadKind;

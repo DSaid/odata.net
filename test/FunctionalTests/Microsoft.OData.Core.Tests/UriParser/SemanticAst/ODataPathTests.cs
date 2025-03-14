@@ -14,6 +14,16 @@ namespace Microsoft.OData.Tests.UriParser.SemanticAst
     public class ODataPathTests
     {
         [Fact]
+        public void ConstructorCopiesSegmentWhenPassedAnotherODataPath()
+        {
+            ODataPath existing = new ODataPath(MetadataSegment.Instance);
+            ODataPath clone = new ODataPath(existing);
+
+            clone.FirstSegment.ShouldBeMetadataSegment();
+            Assert.Equal(1, clone.Segments.Count);
+        }
+
+        [Fact]
         public void FirstSegmentSetCorrectly()
         {
             ODataPath path = new ODataPath(new ValueSegment(ModelBuildingHelpers.BuildValidEntityType()), CountSegment.Instance);
@@ -96,6 +106,25 @@ namespace Microsoft.OData.Tests.UriParser.SemanticAst
         public void PathsOfDifferentLengthsAreNotEqualBatch()
         {
             Assert.False(new ODataPath().Equals(new ODataPath(BatchSegment.Instance)));
+        }
+
+        [Fact]
+        public void IndexShouldReturnCorrectSegment()
+        {
+            ODataPath path = new ODataPath(BatchSegment.Instance, CountSegment.Instance);
+            path[0].ShouldBeBatchSegment();
+            path[1].ShouldBeCountSegment();
+        }
+
+        [Fact]
+        public void IndexingOutOfBoundsShouldThrowException()
+        {
+            ODataPath path = new ODataPath();
+            Assert.Throws<ArgumentOutOfRangeException>(() => path[0]);
+
+            ODataPath path2 = new ODataPath(BatchSegment.Instance, CountSegment.Instance);
+            Assert.Throws<ArgumentOutOfRangeException>(() => path2[2]);
+            Assert.Throws<ArgumentOutOfRangeException>(() => path2[-1]);
         }
     }
 }

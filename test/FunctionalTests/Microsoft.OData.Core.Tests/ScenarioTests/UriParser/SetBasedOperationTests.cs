@@ -432,7 +432,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
                 IEdmEntitySet entitySet = entitySource as IEdmEntitySet;
 
                 var dic = queries.ToDictionary(customQueryOptionToken => customQueryOptionToken.Name, customQueryOptionToken => queries.GetQueryOptionValue(customQueryOptionToken.Name));
-                ODataQueryOptionParser queryOptionParser = new ODataQueryOptionParser(HardCodedTestModel.TestModel, entitySet.EntityType(), entitySet, dic)
+                ODataQueryOptionParser queryOptionParser = new ODataQueryOptionParser(HardCodedTestModel.TestModel, entitySet?.EntityType, entitySet, dic)
                 {
                     Configuration = { ParameterAliasValueAccessor = parser.ParameterAliasValueAccessor }
                 };
@@ -456,7 +456,7 @@ namespace Microsoft.OData.Tests.ScenarioTests.UriParser
             IEdmNavigationSource navigationSource = null;
             foreach (ODataPathSegment segment in oDataPath)
             {
-                navigationSource = segment.TranslateWith(new DetermineNavigationSourceTranslator()) ?? navigationSource;
+                navigationSource = segment.TranslateWith(DetermineNavigationSourceTranslator.Instance) ?? navigationSource;
             }
 
             return navigationSource;
