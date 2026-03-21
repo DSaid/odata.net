@@ -889,7 +889,9 @@ namespace Microsoft.OData.Client
 
                     // if the source hasn't yet been inserted (because its in batch), then create a uri based on its content-ID
                     sourceEntityUri = UriUtil.CreateUri("$" + sourceEntityDescriptor.ChangeOrder.ToString(CultureInfo.InvariantCulture), UriKind.Relative);
+                    // DSa début
                     binding.DependsOnIds = new List<string> { sourceEntityDescriptor.ChangeOrder.ToString(CultureInfo.InvariantCulture) };
+                    // DSa fin
                 }
                 else
                 {
